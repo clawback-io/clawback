@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "bun run src/index.ts",
+    "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --fix .",
     "format": "biome format --write .",
