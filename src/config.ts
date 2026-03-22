@@ -5,15 +5,9 @@ import { z } from "zod"
 
 const ConfigSchema = z.object({
   dataDir: z.string().default(join(homedir(), ".clawback")),
-  webhookPort: z.number().default(18788),
-  webhookHost: z.string().default("127.0.0.1"),
-  skills: z.record(z.string(), z.string()).default({}),
-  remote: z.string().url().optional(),
-  connectionToken: z.string().optional(),
-}).refine(
-  (c) => !c.remote || c.connectionToken,
-  { message: "connectionToken is required when remote is set", path: ["connectionToken"] },
-)
+  remote: z.string().url(),
+  connectionToken: z.string(),
+})
 
 export type ClawbackConfig = z.infer<typeof ConfigSchema>
 
@@ -21,7 +15,9 @@ export function loadConfig(): ClawbackConfig {
   const configPath = process.env.CLAWBACK_CONFIG ?? join(homedir(), ".clawback", "config.json")
 
   if (!existsSync(configPath)) {
-    return ConfigSchema.parse({})
+    console.error(`[clawback] Config not found at ${configPath}`)
+    console.error("[clawback] Create ~/.clawback/config.json with remote and connectionToken")
+    process.exit(1)
   }
 
   try {

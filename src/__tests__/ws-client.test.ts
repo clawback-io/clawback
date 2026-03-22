@@ -1,17 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { EventQueue, type EmitFn } from "../queue.js"
-import type { ActivityLog, ActivityEntry } from "../activity.js"
 import { RemoteClient } from "../ws/client.js"
-
-function mockActivityLog() {
-  const entries: ActivityEntry[] = []
-  return {
-    entries,
-    load: () => entries,
-    list: () => entries,
-    append: (entry: ActivityEntry) => { entries.push(entry) },
-  } as unknown as ActivityLog & { entries: ActivityEntry[] }
-}
 
 let wsServer: ReturnType<typeof Bun.serve> | null = null
 let serverSockets: Set<any> = new Set()
@@ -63,7 +52,6 @@ describe("RemoteClient", () => {
     const emitFn = mock<EmitFn>(async () => {})
     eventQueue = new EventQueue({
       emitFn,
-      activityLog: mockActivityLog(),
     })
   })
 
@@ -309,7 +297,6 @@ describe("RemoteClient", () => {
     const emitFn = mock<EmitFn>(async () => {})
     const queue = new EventQueue({
       emitFn,
-      activityLog: mockActivityLog(),
     })
 
     const { port } = startMockWsServer()
@@ -342,68 +329,5 @@ describe("RemoteClient", () => {
     expect(meta.source).toBe("webhook")
 
     queue.shutdown()
-  })
-})
-
-describe("RemoteClient config validation", () => {
-  test("config with remote requires connectionToken", async () => {
-    // Import dynamically to test the Zod schema
-    const { z } = await import("zod")
-    const { loadConfig } = await import("../config.js")
-    const { writeFileSync, mkdirSync, rmSync } = await import("node:fs")
-    const { tmpdir } = await import("node:os")
-    const { join } = await import("node:path")
-
-    const tmpDir = join(tmpdir(), `clawback-cfg-remote-${crypto.randomUUID()}`)
-    mkdirSync(tmpDir, { recursive: true })
-
-    try {
-      const configPath = join(tmpDir, "config.json")
-      writeFileSync(
-        configPath,
-        JSON.stringify({
-          remote: "wss://example.com/ws",
-        }),
-      )
-      process.env.CLAWBACK_CONFIG = configPath
-
-      // loadConfig calls process.exit on validation error, so we can't directly test it.
-      // Instead, test the schema behavior:
-      const { join: pathJoin } = await import("node:path")
-      const { homedir } = await import("node:os")
-
-      // Manually test refinement
-      const ConfigSchema = z.object({
-        dataDir: z.string().default(pathJoin(homedir(), ".clawback")),
-        webhookPort: z.number().default(18788),
-        webhookHost: z.string().default("127.0.0.1"),
-        skills: z.record(z.string(), z.string()).default({}),
-        remote: z.string().url().optional(),
-        connectionToken: z.string().optional(),
-      }).refine(
-        (c) => !c.remote || c.connectionToken,
-        { message: "connectionToken is required when remote is set", path: ["connectionToken"] },
-      )
-
-      const result = ConfigSchema.safeParse({ remote: "wss://example.com/ws" })
-      expect(result.success).toBe(false)
-      if (!result.success) {
-        expect(result.error.issues[0].path).toContain("connectionToken")
-      }
-
-      // Valid config with both fields
-      const result2 = ConfigSchema.safeParse({
-        remote: "wss://example.com/ws",
-        connectionToken: "cbt_abc123",
-      })
-      expect(result2.success).toBe(true)
-
-      // Local mode config (no remote) is valid without connectionToken
-      const result3 = ConfigSchema.safeParse({})
-      expect(result3.success).toBe(true)
-    } finally {
-      delete process.env.CLAWBACK_CONFIG
-      rmSync(tmpDir, { recursive: true, force: true })
-    }
   })
 })

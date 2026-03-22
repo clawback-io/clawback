@@ -1,5 +1,3 @@
-import type { ActivityLog } from "./activity.js"
-
 export type EmitFn = (
   content: string,
   meta: Record<string, string>,
@@ -12,7 +10,6 @@ export interface QueuedEvent {
 
 export interface EventQueueOptions {
   emitFn: EmitFn
-  activityLog: ActivityLog
   /** How long to wait before sending a reminder nudge (ms). Default: 120000 (2 min) */
   reminderDelayMs?: number
   /** How long to wait before giving up on ack and moving on (ms). Default: 300000 (5 min) */
@@ -37,13 +34,11 @@ export class EventQueue {
   private reminderSent = false
 
   private emitFn: EmitFn
-  private activityLog: ActivityLog
   private reminderDelayMs: number
   private timeoutMs: number
 
   constructor(opts: EventQueueOptions) {
     this.emitFn = opts.emitFn
-    this.activityLog = opts.activityLog
     this.reminderDelayMs = opts.reminderDelayMs ?? DEFAULT_REMINDER_DELAY_MS
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   }
@@ -76,37 +71,10 @@ export class EventQueue {
       return
     }
     console.error("[clawback] Ack received, dispatching next")
-    this.recordActivity(summary ?? "", false)
     this.clearTimers()
     this.inflight = false
     this.inflightCtx = null
     this.tryDispatch()
-  }
-
-  private recordActivity(summary: string, timedOut: boolean): void {
-    const ctx = this.inflightCtx
-    if (!ctx) return
-
-    const completedAt = new Date().toISOString()
-    const durationMs = new Date(completedAt).getTime() - new Date(ctx.dispatchedAt).getTime()
-
-    try {
-      this.activityLog.append({
-        id: `evt_${crypto.randomUUID().slice(0, 8)}`,
-        source: ctx.meta.source ?? "",
-        path: ctx.meta.path ?? "",
-        skill: ctx.meta.skill ?? "",
-        cronId: ctx.meta.cronId ?? "",
-        summary,
-        dispatchedAt: ctx.dispatchedAt,
-        completedAt,
-        durationMs,
-        queueDepth: ctx.queueDepth,
-        timedOut,
-      })
-    } catch (err) {
-      console.error("[clawback] Failed to write activity log:", err)
-    }
   }
 
   private tryDispatch(): void {
@@ -118,14 +86,12 @@ export class EventQueue {
 
     const queueDepth = this.queue.length
 
-    // Store context for activity logging
     this.inflightCtx = {
       meta: event.meta,
       dispatchedAt: new Date().toISOString(),
       queueDepth,
     }
 
-    // Include queue depth so Claude knows how much is waiting
     const meta = {
       ...event.meta,
       queueDepth: String(queueDepth),
@@ -137,14 +103,12 @@ export class EventQueue {
 
     this.emitFn(event.content, meta).catch((err) => {
       console.error("[clawback] Event dispatch failed:", err)
-      // On failure, release the lock so the queue doesn't stall
       this.clearTimers()
       this.inflight = false
       this.inflightCtx = null
       this.tryDispatch()
     })
 
-    // Start reminder and timeout timers
     this.startTimers()
   }
 
@@ -174,7 +138,7 @@ export class EventQueue {
     this.reminderSent = true
 
     const waiting = this.queue.length
-    if (waiting === 0) return // No point reminding if nothing is queued
+    if (waiting === 0) return
 
     console.error(
       `[clawback] Sending ack reminder (${waiting} events waiting)`,
@@ -197,7 +161,6 @@ export class EventQueue {
     console.error(
       `[clawback] Ack timeout (${this.timeoutMs}ms) — moving on to next event`,
     )
-    this.recordActivity("", true)
     this.clearTimers()
     this.inflight = false
     this.inflightCtx = null
