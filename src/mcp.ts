@@ -30,7 +30,7 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
         "Use the cron_create, cron_delete, and cron_list tools to manage persistent cron schedules.",
         "Crons survive across sessions — they are stored on disk.",
         "",
-        "**IMPORTANT**: After you finish handling ANY channel event (webhook or cron), you MUST call the `event_ack` tool.",
+        "**IMPORTANT**: After you finish handling ANY channel event (webhook or cron), you MUST call the `event_ack` tool with a brief summary of what you did.",
         "Events are queued and delivered one at a time — the next event will not arrive until you call `event_ack`.",
         'If you see a notification with meta.type = "ack_reminder", do NOT stop what you are doing. Just call `event_ack` when you are naturally done.',
       ].join("\n"),
@@ -93,7 +93,13 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
           "Acknowledge that you have finished processing the current channel event (webhook or cron). You MUST call this after handling every channel event. The next queued event will not be delivered until you do.",
         inputSchema: {
           type: "object" as const,
-          properties: {},
+          properties: {
+            summary: {
+              type: "string",
+              description:
+                "Brief summary of what you did to handle this event (e.g., \"Reviewed PR #42 — approved with 2 comments\"). Logged for activity history.",
+            },
+          },
         },
       },
     ],
@@ -172,8 +178,9 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
       }
 
       case "event_ack": {
+        const summary = (args?.summary as string | undefined) ?? ""
         const pending = eventQueue.pending
-        eventQueue.ack()
+        eventQueue.ack(summary)
         return {
           content: [
             {

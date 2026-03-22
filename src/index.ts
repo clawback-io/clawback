@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig } from "./config.js"
+import { ActivityLog } from "./activity.js"
 import { CronScheduler } from "./cron/scheduler.js"
 import { CronStore } from "./cron/store.js"
 import { EventQueue } from "./queue.js"
@@ -11,6 +12,7 @@ async function main() {
   const config = loadConfig()
 
   const store = new CronStore(config.dataDir)
+  const activityLog = new ActivityLog(config.dataDir)
 
   // emitChannelEvent will be set once MCP connects
   let emitChannelEvent: (content: string, meta: Record<string, string>) => Promise<void>
@@ -20,6 +22,7 @@ async function main() {
     emitFn: async (content, meta) => {
       await emitChannelEvent(content, meta)
     },
+    activityLog,
   })
 
   const scheduler = new CronScheduler(eventQueue)

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 import { CronScheduler } from "../cron/scheduler.js"
 import type { CronDefinition } from "../cron/types.js"
 import { EventQueue } from "../queue.js"
+import type { ActivityLog } from "../activity.js"
 
 function makeDef(overrides: Partial<CronDefinition> = {}): CronDefinition {
   return {
@@ -14,7 +15,8 @@ function makeDef(overrides: Partial<CronDefinition> = {}): CronDefinition {
 }
 
 function makeQueue(): EventQueue {
-  return new EventQueue({ emitFn: mock(async () => {}) })
+  const activityLog = { load: () => [], list: () => [], append: () => {} } as unknown as ActivityLog
+  return new EventQueue({ emitFn: mock(async () => {}), activityLog })
 }
 
 describe("CronScheduler", () => {

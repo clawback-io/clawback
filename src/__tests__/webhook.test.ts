@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
 import { EventQueue } from "../queue.js"
+import type { ActivityLog } from "../activity.js"
 import { findSkill, startWebhookServer } from "../webhook/server.js"
 
 describe("findSkill", () => {
@@ -35,7 +36,8 @@ describe("startWebhookServer", () => {
 
   function setup(skills: Record<string, string> = {}) {
     emitFn = mock(async () => {})
-    eventQueue = new EventQueue({ emitFn })
+    const activityLog = { load: () => [], list: () => [], append: () => {} } as unknown as ActivityLog
+    eventQueue = new EventQueue({ emitFn, activityLog })
     server = startWebhookServer({
       port: 0, // random available port
       host: "127.0.0.1",

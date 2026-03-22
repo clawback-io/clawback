@@ -11,6 +11,7 @@ Claude Code's built-in crons are session-scoped and expire after 7 days. Clawbac
 - **Skill Mapping** — Optionally map webhook paths to skills (e.g., `/github` → `/review`). Unmapped paths let Claude decide what to do.
 - **Batching** — Multiple webhooks arriving within 5 seconds are batched into a single notification, preventing Claude from being interrupted mid-task.
 - **Sequential Event Queue** — All events (webhooks + crons) are dispatched one at a time. Claude calls `event_ack` when done, which releases the next event. Includes a reminder nudge (2 min) and auto-advance timeout (5 min) as safety nets.
+- **Activity Log** — Every processed event is logged to `~/.clawback/activity.json` with a summary of what Claude did, timing, and whether it timed out. Capped at 500 entries for easy review.
 
 ## Quick Start
 
@@ -144,6 +145,7 @@ src/
   index.ts              Entry point — wires MCP, cron, webhook, queue; startup/shutdown
   mcp.ts                MCP server, channel capability, cron CRUD + event_ack tools
   queue.ts              EventQueue — one-at-a-time dispatch with ack, reminder, timeout
+  activity.ts           ActivityLog — persistent log of completed events
   config.ts             Loads ~/.clawback/config.json
   cron/
     store.ts            Persistent JSON storage with atomic writes
