@@ -9,6 +9,22 @@ export interface McpServerOptions {
   remoteClient: RemoteClient
 }
 
+/** Error messages that are safe to forward to the client as-is. */
+const KNOWN_ERRORS = ["Not connected to remote server", "Request timed out", "Connection closed"]
+
+/** Returns a safe error message for the client. Known errors pass through; unknown errors are sanitized. */
+function safeErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    if (KNOWN_ERRORS.includes(err.message)) {
+      return err.message
+    }
+    console.error("[clawback] Tool request failed:", err.message)
+    return "Request failed"
+  }
+  console.error("[clawback] Tool request failed:", err)
+  return "Request failed"
+}
+
 export function createMcpServer(opts: McpServerOptions) {
   const { eventQueue, remoteClient } = opts
 
@@ -230,7 +246,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to create cron: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to create cron: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -261,7 +277,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to delete cron: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to delete cron: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -302,7 +318,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to list crons: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to list crons: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -365,7 +381,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to create source: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to create source: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -401,7 +417,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to list sources: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to list sources: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -431,7 +447,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to delete source: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to delete source: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -480,7 +496,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to list activity: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to list activity: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
@@ -521,7 +537,7 @@ export function createMcpServer(opts: McpServerOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to get account info: ${err instanceof Error ? err.message : String(err)}`,
+                text: `Failed to get account info: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,

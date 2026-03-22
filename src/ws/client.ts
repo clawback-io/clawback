@@ -24,6 +24,8 @@ const MIN_RECONNECT_MS = 1_000
 const MAX_RECONNECT_MS = 30_000
 const HEARTBEAT_TIMEOUT_MS = 90_000
 const REQUEST_TIMEOUT_MS = 30_000
+const MAX_OFFLINE_ACKS = 1_000
+const RECONNECT_JITTER = 0.3
 
 export class RemoteClient {
   private ws: WebSocket | null = null
@@ -143,6 +145,12 @@ export class RemoteClient {
     if (this.isConnected()) {
       this.send(msg)
     } else {
+      if (this.offlineAcks.length >= MAX_OFFLINE_ACKS) {
+        console.error(
+          `[clawback] WARNING: Offline ack queue is full (${MAX_OFFLINE_ACKS}). Dropping oldest ack.`,
+        )
+        this.offlineAcks.shift()
+      }
       this.offlineAcks.push(msg)
     }
   }
@@ -208,13 +216,17 @@ export class RemoteClient {
   private scheduleReconnect(): void {
     if (this.closed) return
 
-    console.error(`[clawback] Reconnecting in ${this.reconnectMs}ms`)
+    // Apply +/-30% random jitter to the base delay
+    const jitter = 1 + (Math.random() * 2 - 1) * RECONNECT_JITTER
+    const delayMs = Math.round(this.reconnectMs * jitter)
+
+    console.error(`[clawback] Reconnecting in ${delayMs}ms`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect()
-    }, this.reconnectMs)
+    }, delayMs)
 
-    // Exponential backoff
+    // Exponential backoff (base delay still doubles)
     this.reconnectMs = Math.min(this.reconnectMs * 2, MAX_RECONNECT_MS)
   }
 
