@@ -12,7 +12,7 @@ This plugin is a thin WebSocket client that bridges a remote Clawback server to 
 - **Auto-reconnects** with exponential backoff if the connection drops
 - **Queues acks offline** and flushes them when reconnected
 
-The server (separate repo: `clawback-server`) handles webhook ingestion, HMAC verification, cron scheduling, multi-account isolation, and activity logging.
+The server (separate repo: [`clawback-server`](https://github.com/clawback-io/clawback-server)) handles webhook ingestion, HMAC verification, cron scheduling, multi-account isolation, and activity logging.
 
 ## Setup
 
@@ -82,6 +82,30 @@ Clawback Server ←──WebSocket──→ Local Plugin ←──stdio──→
 - `src/config.ts` — Loads config from `~/.clawback/config.json`
 - `src/ws/client.ts` — WebSocket client with auto-reconnect, heartbeat, offline ack queue
 - `src/ws/protocol.ts` — Shared message types (ServerMessage, ClientMessage)
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `cron_create` | Create a persistent cron job (schedule + prompt/skill) |
+| `cron_delete` | Delete a cron by ID |
+| `cron_list` | List all crons |
+| `event_ack` | Acknowledge current event (required after each event) |
+| `source_create` | Create a webhook source with optional HMAC verification and skill mapping |
+| `source_list` | List webhook sources |
+| `source_delete` | Delete a webhook source |
+| `activity_list` | View recent event processing history |
+| `account_info` | Show webhook base URL and connection status |
+
+### Skill mapping
+
+When creating a webhook source with `source_create`, the `skill` parameter maps that source to a skill/prompt. When a webhook arrives, the skill is prepended to the payload:
+
+```
+source_create slug="github" type="github" secret="whsec_..." skill="/review"
+```
+
+This means any POST to `/webhooks/<id>/github` will be delivered to Claude as `/review` with the webhook payload as context.
 
 ## Key constraints
 
