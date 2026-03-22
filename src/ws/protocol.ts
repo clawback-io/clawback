@@ -17,6 +17,18 @@ export type ClientMessage =
     }
   | { type: "cron_delete"; requestId: string; cronId: string }
   | { type: "cron_list"; requestId: string }
+  | {
+      type: "source_create"
+      requestId: string
+      slug: string
+      verifierType?: string
+      secret?: string
+      skill?: string
+    }
+  | { type: "source_list"; requestId: string }
+  | { type: "source_delete"; requestId: string; sourceId: string }
+  | { type: "activity_list"; requestId: string; limit?: number }
+  | { type: "account_info"; requestId: string }
 
 export function parseServerMessage(data: string): ServerMessage | null {
   try {

@@ -107,6 +107,76 @@ export function createMcpServer(opts: McpServerOptions) {
           },
         },
       },
+      {
+        name: "source_create",
+        description:
+          "Create a webhook source. External services POST to the webhook URL with this source slug. Supports HMAC verification (github, stripe, generic, none).",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            slug: {
+              type: "string",
+              description: 'URL slug for the webhook endpoint (e.g., "github", "sentry", "deploy")',
+            },
+            type: {
+              type: "string",
+              description: 'Verification type: "github" (X-Hub-Signature-256), "stripe" (Stripe-Signature), "generic" (HMAC-SHA256), or "none" (no verification). Default: "generic"',
+            },
+            secret: {
+              type: "string",
+              description: "Webhook secret for HMAC verification. Not needed if type is \"none\".",
+            },
+            skill: {
+              type: "string",
+              description: 'Optional skill or prompt to prepend when this webhook fires (e.g., "/review", "Investigate this error")',
+            },
+          },
+          required: ["slug"],
+        },
+      },
+      {
+        name: "source_list",
+        description: "List all configured webhook sources with their slugs, verification types, and skills.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+        },
+      },
+      {
+        name: "source_delete",
+        description: "Delete a webhook source by its ID.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            id: {
+              type: "string",
+              description: "The webhook source ID to delete",
+            },
+          },
+          required: ["id"],
+        },
+      },
+      {
+        name: "activity_list",
+        description: "View recent activity log — shows what events were processed, summaries, and timing.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            limit: {
+              type: "number",
+              description: "Number of recent entries to return (default: 20, max: 100)",
+            },
+          },
+        },
+      },
+      {
+        name: "account_info",
+        description: "Show account info including the webhook base URL for configuring external services.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+        },
+      },
     ],
   }))
 
@@ -258,6 +328,198 @@ export function createMcpServer(opts: McpServerOptions) {
                 : "Acknowledged. No more events in the queue.",
             },
           ],
+        }
+      }
+
+      case "source_create": {
+        const slug = args?.slug as string
+        const type = (args?.type as string | undefined) ?? "generic"
+        const secret = args?.secret as string | undefined
+        const skill = args?.skill as string | undefined
+
+        try {
+          const data = await remoteClient.request({
+            type: "source_create",
+            requestId: crypto.randomUUID(),
+            slug,
+            verifierType: type,
+            secret,
+            skill,
+          })
+          const result = data as { id: string; slug: string; type: string; skill: string }
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Webhook source created: ${result.slug}\n  ID: ${result.id}\n  Verification: ${result.type}${result.skill ? `\n  Skill: ${result.skill}` : ""}`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to create source: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "source_list": {
+        try {
+          const data = await remoteClient.request({
+            type: "source_list",
+            requestId: crypto.randomUUID(),
+          })
+          const sources = data as Array<{ id: string; slug: string; type: string; skill: string }>
+          if (sources.length === 0) {
+            return {
+              content: [{ type: "text" as const, text: "No webhook sources configured." }],
+            }
+          }
+          const lines = sources.map(
+            (s) => `- ${s.slug} | ${s.type} | ${s.skill || "(no skill)"} | ID: ${s.id}`,
+          )
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Webhook sources (${sources.length}):\n${lines.join("\n")}`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to list sources: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "source_delete": {
+        const id = args?.id as string
+        try {
+          const data = await remoteClient.request({
+            type: "source_delete",
+            requestId: crypto.randomUUID(),
+            sourceId: id,
+          })
+          const result = data as { removed: boolean }
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: result.removed ? `Source ${id} deleted.` : `Source ${id} not found.`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to delete source: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "activity_list": {
+        const limit = args?.limit as number | undefined
+        try {
+          const data = await remoteClient.request({
+            type: "activity_list",
+            requestId: crypto.randomUUID(),
+            limit,
+          })
+          const entries = data as Array<{
+            source: string
+            path: string
+            skill: string
+            summary: string
+            completedAt: string
+            durationMs: number
+            timedOut: boolean
+          }>
+          if (entries.length === 0) {
+            return {
+              content: [{ type: "text" as const, text: "No activity recorded yet." }],
+            }
+          }
+          const lines = entries.map((e) => {
+            const dur = e.durationMs < 1000 ? `${e.durationMs}ms` : `${(e.durationMs / 1000).toFixed(1)}s`
+            const timeout = e.timedOut ? " [TIMED OUT]" : ""
+            return `- ${e.completedAt} | ${e.source}${e.path ? ` ${e.path}` : ""} | ${dur}${timeout}\n  ${e.summary || "(no summary)"}`
+          })
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Recent activity (${entries.length}):\n${lines.join("\n")}`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to list activity: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "account_info": {
+        try {
+          const data = await remoteClient.request({
+            type: "account_info",
+            requestId: crypto.randomUUID(),
+          })
+          const info = data as {
+            profileId: string
+            webhookId: string
+            webhookBaseUrl: string
+            connectedClients: number
+          }
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: [
+                  `Account info:`,
+                  `  Profile ID: ${info.profileId}`,
+                  `  Webhook base URL: ${info.webhookBaseUrl}`,
+                  `  Connected clients: ${info.connectedClients}`,
+                  ``,
+                  `To receive webhooks, configure external services to POST to:`,
+                  `  ${info.webhookBaseUrl}/<source-slug>`,
+                ].join("\n"),
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to get account info: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          }
         }
       }
 
