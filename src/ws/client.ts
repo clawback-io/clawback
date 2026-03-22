@@ -53,13 +53,10 @@ export class RemoteClient {
   connect(): void {
     if (this.closed) return
 
-    const separator = this.url.includes("?") ? "&" : "?"
-    const wsUrl = `${this.url}${separator}token=${encodeURIComponent(this.token)}`
-
     console.error(`[clawback] Connecting to remote: ${this.url}`)
 
     try {
-      this.ws = new WebSocket(wsUrl)
+      this.ws = new WebSocket(this.url)
     } catch (err) {
       console.error("[clawback] WebSocket creation failed:", err)
       this.scheduleReconnect()
@@ -67,11 +64,8 @@ export class RemoteClient {
     }
 
     this.ws.onopen = () => {
-      console.error("[clawback] Remote connected")
-      this.reconnectMs = MIN_RECONNECT_MS
-      this.resetHeartbeat()
-      this.flushOfflineAcks()
-      this.onOpen?.()
+      // Authenticate via first message instead of URL query param
+      this.send({ type: "auth", token: this.token })
     }
 
     this.ws.onmessage = (ev) => {
@@ -103,6 +97,14 @@ export class RemoteClient {
     }
 
     switch (msg.type) {
+      case "auth_ok":
+        console.error("[clawback] Remote connected")
+        this.reconnectMs = MIN_RECONNECT_MS
+        this.resetHeartbeat()
+        this.flushOfflineAcks()
+        this.onOpen?.()
+        break
+
       case "ping":
         this.send({ type: "pong" })
         break

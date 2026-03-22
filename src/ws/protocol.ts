@@ -20,16 +20,26 @@ const ServerResponseSchema = z.object({
   error: z.string().optional(),
 })
 
+const ServerAuthOkSchema = z.object({
+  type: z.literal("auth_ok"),
+})
+
 const ServerMessageSchema = z.discriminatedUnion("type", [
   ServerEventSchema,
   ServerPingSchema,
   ServerResponseSchema,
+  ServerAuthOkSchema,
 ])
 
 /** Messages sent from the remote server to the local plugin */
 export type ServerMessage = z.infer<typeof ServerMessageSchema>
 
 // ─── Plugin → Server schemas ───
+
+const ClientAuthSchema = z.object({
+  type: z.literal("auth"),
+  token: z.string(),
+})
 
 const ClientAckSchema = z.object({
   type: z.literal("ack"),
@@ -92,6 +102,7 @@ const ClientAccountInfoSchema = z.object({
 })
 
 const ClientMessageSchema = z.discriminatedUnion("type", [
+  ClientAuthSchema,
   ClientAckSchema,
   ClientPongSchema,
   ClientCronCreateSchema,
