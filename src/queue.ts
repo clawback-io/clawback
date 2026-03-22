@@ -56,6 +56,11 @@ export class EventQueue {
     return this.inflight
   }
 
+  /** Meta of the currently inflight event (if any). Used to extract remoteEventId for acks. */
+  get inflightMeta(): Record<string, string> | null {
+    return this.inflightCtx?.meta ?? null
+  }
+
   enqueue(event: QueuedEvent): void {
     this.queue.push(event)
     console.error(

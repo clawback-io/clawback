@@ -4,8 +4,20 @@ import { Cron } from "croner"
 import type { CronScheduler } from "./cron/scheduler.js"
 import type { CronStore } from "./cron/store.js"
 import type { EventQueue } from "./queue.js"
+import type { RemoteClient } from "./ws/client.js"
 
-export function createMcpServer(store: CronStore, scheduler: CronScheduler, eventQueue: EventQueue) {
+export interface McpServerOptions {
+  store: CronStore
+  scheduler: CronScheduler
+  eventQueue: EventQueue
+  /** When set, cron tools forward over WS and acks are sent to the remote. */
+  remoteClient?: RemoteClient
+}
+
+export function createMcpServer(opts: McpServerOptions) {
+  const { store, scheduler, eventQueue, remoteClient } = opts
+  const isRemote = !!remoteClient
+
   const server = new Server(
     { name: "clawback", version: "0.1.0" },
     {
@@ -97,7 +109,7 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
             summary: {
               type: "string",
               description:
-                "Brief summary of what you did to handle this event (e.g., \"Reviewed PR #42 — approved with 2 comments\"). Logged for activity history.",
+                'Brief summary of what you did to handle this event (e.g., "Reviewed PR #42 — approved with 2 comments"). Logged for activity history.',
             },
           },
         },
@@ -128,6 +140,38 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
           }
         }
 
+        if (isRemote) {
+          try {
+            const data = await remoteClient!.request({
+              type: "cron_create",
+              requestId: crypto.randomUUID(),
+              schedule,
+              prompt,
+              label,
+            })
+            const result = data as { id: string; schedule: string; prompt: string; label?: string }
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Cron created: ${result.id}\n  Schedule: ${result.schedule}\n  Prompt: ${result.prompt}${result.label ? `\n  Label: ${result.label}` : ""}`,
+                },
+              ],
+            }
+          } catch (err) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Failed to create cron on remote: ${err instanceof Error ? err.message : String(err)}`,
+                },
+              ],
+              isError: true,
+            }
+          }
+        }
+
+        // Local mode
         const def = store.add({ schedule, prompt, label })
         scheduler.start(def)
 
@@ -143,9 +187,39 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
 
       case "cron_delete": {
         const id = args?.id as string
+
+        if (isRemote) {
+          try {
+            const data = await remoteClient!.request({
+              type: "cron_delete",
+              requestId: crypto.randomUUID(),
+              cronId: id,
+            })
+            const result = data as { removed: boolean }
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: result.removed ? `Cron ${id} deleted.` : `Cron ${id} not found.`,
+                },
+              ],
+            }
+          } catch (err) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Failed to delete cron on remote: ${err instanceof Error ? err.message : String(err)}`,
+                },
+              ],
+              isError: true,
+            }
+          }
+        }
+
+        // Local mode
         scheduler.stop(id)
         const removed = store.remove(id)
-
         return {
           content: [
             {
@@ -157,6 +231,49 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
       }
 
       case "cron_list": {
+        if (isRemote) {
+          try {
+            const data = await remoteClient!.request({
+              type: "cron_list",
+              requestId: crypto.randomUUID(),
+            })
+            const crons = data as Array<{
+              id: string
+              schedule: string
+              prompt: string
+              label?: string
+            }>
+            if (crons.length === 0) {
+              return {
+                content: [{ type: "text" as const, text: "No cron jobs configured." }],
+              }
+            }
+            const lines = crons.map(
+              (c) =>
+                `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"} | ${c.prompt}`,
+            )
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Cron jobs (${crons.length}):\n${lines.join("\n")}`,
+                },
+              ],
+            }
+          } catch (err) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Failed to list crons from remote: ${err instanceof Error ? err.message : String(err)}`,
+                },
+              ],
+              isError: true,
+            }
+          }
+        }
+
+        // Local mode
         const crons = store.list()
         if (crons.length === 0) {
           return {
@@ -180,6 +297,16 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler, even
       case "event_ack": {
         const summary = (args?.summary as string | undefined) ?? ""
         const pending = eventQueue.pending
+
+        // In remote mode, send ack to the remote server
+        if (isRemote && eventQueue.busy) {
+          // Get the remote event ID from the inflight event's meta
+          const remoteEventId = eventQueue.inflightMeta?.remoteEventId
+          if (remoteEventId) {
+            remoteClient!.sendAck(remoteEventId, summary)
+          }
+        }
+
         eventQueue.ack(summary)
         return {
           content: [

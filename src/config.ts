@@ -8,7 +8,12 @@ const ConfigSchema = z.object({
   webhookPort: z.number().default(18788),
   webhookHost: z.string().default("127.0.0.1"),
   skills: z.record(z.string(), z.string()).default({}),
-})
+  remote: z.string().url().optional(),
+  connectionToken: z.string().optional(),
+}).refine(
+  (c) => !c.remote || c.connectionToken,
+  { message: "connectionToken is required when remote is set", path: ["connectionToken"] },
+)
 
 export type ClawbackConfig = z.infer<typeof ConfigSchema>
 
