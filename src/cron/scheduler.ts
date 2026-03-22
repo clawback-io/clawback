@@ -1,14 +1,13 @@
 import { Cron } from "croner"
 import type { CronDefinition } from "./types.js"
-
-export type EmitFn = (content: string, meta: Record<string, string>) => Promise<void>
+import type { EventQueue } from "../queue.js"
 
 export class CronScheduler {
   private jobs = new Map<string, Cron>()
-  private emitFn: EmitFn
+  private eventQueue: EventQueue
 
-  constructor(emitFn: EmitFn) {
-    this.emitFn = emitFn
+  constructor(eventQueue: EventQueue) {
+    this.eventQueue = eventQueue
   }
 
   startAll(definitions: CronDefinition[]): void {
@@ -21,20 +20,16 @@ export class CronScheduler {
     // Stop existing job with same ID if any
     this.stop(def.id)
 
-    const job = new Cron(def.schedule, async () => {
-      try {
-        await this.emitFn(def.prompt, {
+    const job = new Cron(def.schedule, () => {
+      this.eventQueue.enqueue({
+        content: def.prompt,
+        meta: {
           source: "cron",
           cronId: def.id,
           label: def.label ?? "",
           schedule: def.schedule,
-        })
-      } catch (err) {
-        console.error(
-          `[clawback] Cron ${def.id} (${def.label ?? def.schedule}) notification failed:`,
-          err,
-        )
-      }
+        },
+      })
     })
 
     this.jobs.set(def.id, job)

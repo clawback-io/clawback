@@ -10,6 +10,7 @@ Claude Code's built-in crons are session-scoped and expire after 7 days. Clawbac
 - **Webhook Receiver** — Any POST to `localhost:18788` gets forwarded as a channel notification. Expose publicly via ngrok/Cloudflare Tunnel for external sources (GitHub, Sentry, etc).
 - **Skill Mapping** — Optionally map webhook paths to skills (e.g., `/github` → `/review`). Unmapped paths let Claude decide what to do.
 - **Batching** — Multiple webhooks arriving within 5 seconds are batched into a single notification, preventing Claude from being interrupted mid-task.
+- **Sequential Event Queue** — All events (webhooks + crons) are dispatched one at a time. Claude calls `event_ack` when done, which releases the next event. Includes a reminder nudge (2 min) and auto-advance timeout (5 min) as safety nets.
 
 ## Quick Start
 
@@ -119,30 +120,37 @@ Claude then invokes the skill with the webhook payload as context. Paths without
 Clawback is an MCP server that declares the `claude/channel` capability. It connects to Claude Code over stdio as a subprocess.
 
 ```
-External Service ──POST──▶ Bun.serve(:18788) ──▶ channel notification ──▶ Claude Code
-                                                                          Claude reads event,
-                                                                          invokes skill or decides
+External Service ──POST──▶ Bun.serve(:18788) ──5s debounce──▶ EventQueue
+                                                                  │
+croner tick ─────────────────────────────────────────────────▶ EventQueue
+                                                                  │
+                                                          (one at a time)
+                                                                  │
+                                                                  ▼
+                                                        channel notification ──▶ Claude Code
+                                                                                  Claude processes,
+                                                                                  then calls event_ack
+                                                                                        │
+                                                                                        ▼
+                                                                                  next event dispatched
 
-croner tick ────────────────────────────────────▶ channel notification ──▶ Claude Code
-                                                                          Claude executes the
-                                                                          cron's prompt/skill
-
-Claude Code ──tool call──▶ cron_create / cron_delete / cron_list ──▶ disk + scheduler
+Claude Code ──tool call──▶ cron_create / cron_delete / cron_list / event_ack
 ```
 
 ## Project Structure
 
 ```
 src/
-  index.ts              Entry point — wires MCP, cron, webhook; startup/shutdown
-  mcp.ts                MCP server, channel capability, cron CRUD tools
+  index.ts              Entry point — wires MCP, cron, webhook, queue; startup/shutdown
+  mcp.ts                MCP server, channel capability, cron CRUD + event_ack tools
+  queue.ts              EventQueue — one-at-a-time dispatch with ack, reminder, timeout
   config.ts             Loads ~/.clawback/config.json
   cron/
     store.ts            Persistent JSON storage with atomic writes
-    scheduler.ts        Wraps croner, fires prompt notifications
+    scheduler.ts        Wraps croner, enqueues events into EventQueue
     types.ts            CronDefinition interface
   webhook/
-    server.ts           Bun.serve with batching and skill mapping
+    server.ts           Bun.serve with debounce batching, enqueues into EventQueue
     types.ts            WebhookMeta interface
 ```
 

@@ -1,12 +1,7 @@
-import type { EmitFn } from "../cron/scheduler.js"
+import type { EventQueue, QueuedEvent } from "../queue.js"
 
 const MAX_BODY_SIZE = 256 * 1024 // 256KB
 const BATCH_DELAY_MS = 5000 // Wait 5s of quiet before flushing
-
-interface QueuedEvent {
-  content: string
-  meta: Record<string, string>
-}
 
 export function findSkill(pathname: string, skills: Record<string, string>): string | null {
   if (skills[pathname]) return skills[pathname]
@@ -24,40 +19,35 @@ export function findSkill(pathname: string, skills: Record<string, string>): str
 export interface WebhookServerOptions {
   port: number
   host: string
-  emitFn: EmitFn
+  eventQueue: EventQueue
   skills: Record<string, string>
 }
 
 export function startWebhookServer(opts: WebhookServerOptions) {
-  const { port, host, emitFn, skills } = opts
+  const { port, host, eventQueue, skills } = opts
 
-  const queue: QueuedEvent[] = []
+  // Batch incoming webhooks with a 5s debounce before pushing to the event queue.
+  // This collapses rapid-fire webhooks (e.g., a burst of GitHub events) into one queued event.
+  const pending: QueuedEvent[] = []
   let flushTimer: ReturnType<typeof setTimeout> | null = null
 
-  async function flush() {
+  function flush() {
     flushTimer = null
-    if (queue.length === 0) return
+    if (pending.length === 0) return
 
-    const events = queue.splice(0)
+    const events = pending.splice(0)
 
     if (events.length === 1) {
-      // Single event — send as-is
-      const e = events[0]
-      try {
-        await emitFn(e.content, e.meta)
-      } catch (err) {
-        console.error("[clawback] Webhook notification failed:", err)
-      }
+      eventQueue.enqueue(events[0])
     } else {
-      // Multiple events — batch into one notification
+      // Batch multiple webhooks into a single queued event
       const parts = events.map((e, i) => {
         const header = `--- Event ${i + 1}/${events.length} [${e.meta.path}] ---`
         return `${header}\n${e.content}`
       })
-      const content = parts.join("\n\n")
-
-      try {
-        await emitFn(content, {
+      eventQueue.enqueue({
+        content: parts.join("\n\n"),
+        meta: {
           source: "webhook",
           path: "batch",
           method: "POST",
@@ -66,20 +56,17 @@ export function startWebhookServer(opts: WebhookServerOptions) {
           truncated: "false",
           eventCount: String(events.length),
           timestamp: new Date().toISOString(),
-        })
-      } catch (err) {
-        console.error("[clawback] Batch webhook notification failed:", err)
-      }
+        },
+      })
     }
   }
 
   function enqueue(event: QueuedEvent) {
-    queue.push(event)
-    // Reset the debounce timer on each new event
+    pending.push(event)
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = setTimeout(flush, BATCH_DELAY_MS)
     console.error(
-      `[clawback] Queued webhook (${queue.length} pending, flushing in ${BATCH_DELAY_MS}ms)`,
+      `[clawback] Webhook queued (${pending.length} pending, flushing in ${BATCH_DELAY_MS}ms)`,
     )
   }
 

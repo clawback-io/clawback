@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
 import { CronScheduler } from "../cron/scheduler.js"
 import type { CronDefinition } from "../cron/types.js"
+import { EventQueue } from "../queue.js"
 
 function makeDef(overrides: Partial<CronDefinition> = {}): CronDefinition {
   return {
@@ -12,15 +13,19 @@ function makeDef(overrides: Partial<CronDefinition> = {}): CronDefinition {
   }
 }
 
+function makeQueue(): EventQueue {
+  return new EventQueue({ emitFn: mock(async () => {}) })
+}
+
 describe("CronScheduler", () => {
-  let emitFn: ReturnType<typeof mock>
+  let eventQueue: EventQueue
 
   beforeEach(() => {
-    emitFn = mock(async () => {})
+    eventQueue = makeQueue()
   })
 
   test("start registers a job and stop removes it", () => {
-    const scheduler = new CronScheduler(emitFn)
+    const scheduler = new CronScheduler(eventQueue)
     const def = makeDef()
 
     scheduler.start(def)
@@ -28,12 +33,12 @@ describe("CronScheduler", () => {
   })
 
   test("stop returns false for unknown id", () => {
-    const scheduler = new CronScheduler(emitFn)
+    const scheduler = new CronScheduler(eventQueue)
     expect(scheduler.stop("nonexistent")).toBe(false)
   })
 
   test("startAll registers multiple jobs", () => {
-    const scheduler = new CronScheduler(emitFn)
+    const scheduler = new CronScheduler(eventQueue)
     const defs = [makeDef(), makeDef(), makeDef()]
 
     scheduler.startAll(defs)
@@ -44,7 +49,7 @@ describe("CronScheduler", () => {
   })
 
   test("stopAll clears all jobs", () => {
-    const scheduler = new CronScheduler(emitFn)
+    const scheduler = new CronScheduler(eventQueue)
     const defs = [makeDef(), makeDef()]
 
     scheduler.startAll(defs)
@@ -57,7 +62,7 @@ describe("CronScheduler", () => {
   })
 
   test("start replaces existing job with same id", () => {
-    const scheduler = new CronScheduler(emitFn)
+    const scheduler = new CronScheduler(eventQueue)
     const def = makeDef()
 
     scheduler.start(def)

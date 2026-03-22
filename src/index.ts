@@ -3,23 +3,28 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig } from "./config.js"
 import { CronScheduler } from "./cron/scheduler.js"
 import { CronStore } from "./cron/store.js"
+import { EventQueue } from "./queue.js"
 import { createMcpServer } from "./mcp.js"
 import { startWebhookServer } from "./webhook/server.js"
 
 async function main() {
   const config = loadConfig()
 
-  // Create store and a placeholder scheduler (emitFn wired after MCP connects)
   const store = new CronStore(config.dataDir)
 
+  // emitChannelEvent will be set once MCP connects
   let emitChannelEvent: (content: string, meta: Record<string, string>) => Promise<void>
 
-  const scheduler = new CronScheduler(async (content, meta) => {
-    // Delegate to the real emitFn once it's wired
-    await emitChannelEvent(content, meta)
+  // Event queue gates dispatch — one event at a time
+  const eventQueue = new EventQueue({
+    emitFn: async (content, meta) => {
+      await emitChannelEvent(content, meta)
+    },
   })
 
-  const { server, emitChannelEvent: emitFn } = createMcpServer(store, scheduler)
+  const scheduler = new CronScheduler(eventQueue)
+
+  const { server, emitChannelEvent: emitFn } = createMcpServer(store, scheduler, eventQueue)
   emitChannelEvent = emitFn
 
   // Connect MCP over stdio — must complete before any notifications
@@ -38,7 +43,7 @@ async function main() {
     webhookServer = startWebhookServer({
       port: config.webhookPort,
       host: config.webhookHost,
-      emitFn: emitChannelEvent,
+      eventQueue,
       skills: config.skills,
     })
   } catch (err) {
@@ -55,6 +60,7 @@ async function main() {
   const shutdown = () => {
     console.error("[clawback] Shutting down...")
     scheduler.stopAll()
+    eventQueue.shutdown()
     webhookServer?.stop()
     server.close()
     process.exit(0)

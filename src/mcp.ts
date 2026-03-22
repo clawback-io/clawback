@@ -3,8 +3,9 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { Cron } from "croner"
 import type { CronScheduler } from "./cron/scheduler.js"
 import type { CronStore } from "./cron/store.js"
+import type { EventQueue } from "./queue.js"
 
-export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
+export function createMcpServer(store: CronStore, scheduler: CronScheduler, eventQueue: EventQueue) {
   const server = new Server(
     { name: "clawback", version: "0.1.0" },
     {
@@ -28,6 +29,10 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
         "",
         "Use the cron_create, cron_delete, and cron_list tools to manage persistent cron schedules.",
         "Crons survive across sessions — they are stored on disk.",
+        "",
+        "**IMPORTANT**: After you finish handling ANY channel event (webhook or cron), you MUST call the `event_ack` tool.",
+        "Events are queued and delivered one at a time — the next event will not arrive until you call `event_ack`.",
+        'If you see a notification with meta.type = "ack_reminder", do NOT stop what you are doing. Just call `event_ack` when you are naturally done.',
       ].join("\n"),
     },
   )
@@ -77,6 +82,15 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
       {
         name: "cron_list",
         description: "List all persistent cron jobs with their IDs, schedules, and prompts.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+        },
+      },
+      {
+        name: "event_ack",
+        description:
+          "Acknowledge that you have finished processing the current channel event (webhook or cron). You MUST call this after handling every channel event. The next queued event will not be delivered until you do.",
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -152,6 +166,21 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
             {
               type: "text" as const,
               text: `Cron jobs (${crons.length}):\n${lines.join("\n")}`,
+            },
+          ],
+        }
+      }
+
+      case "event_ack": {
+        const pending = eventQueue.pending
+        eventQueue.ack()
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: pending > 0
+                ? `Acknowledged. ${pending} event${pending === 1 ? "" : "s"} still queued — next one incoming.`
+                : "Acknowledged. No more events in the queue.",
             },
           ],
         }
