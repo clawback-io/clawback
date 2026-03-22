@@ -8,10 +8,7 @@ interface QueuedEvent {
   meta: Record<string, string>
 }
 
-function findSkill(
-  pathname: string,
-  skills: Record<string, string>,
-): string | null {
+function findSkill(pathname: string, skills: Record<string, string>): string | null {
   if (skills[pathname]) return skills[pathname]
   let best: string | null = null
   let bestLen = 0
@@ -108,9 +105,7 @@ export function startWebhookServer(opts: WebhookServerOptions) {
       }
 
       const skill = findSkill(url.pathname, skills)
-      const content = skill
-        ? `${skill}\n\nContext:\n${body}`
-        : body
+      const content = skill ? `${skill}\n\nContext:\n${body}` : body
 
       enqueue({
         content,

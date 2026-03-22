@@ -1,7 +1,7 @@
+import { existsSync, readFileSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
 import { z } from "zod"
-import { existsSync, readFileSync } from "fs"
-import { join } from "path"
-import { homedir } from "os"
 
 const ConfigSchema = z.object({
   dataDir: z.string().default(join(homedir(), ".clawback")),
@@ -13,8 +13,7 @@ const ConfigSchema = z.object({
 export type ClawbackConfig = z.infer<typeof ConfigSchema>
 
 export function loadConfig(): ClawbackConfig {
-  const configPath =
-    process.env.CLAWBACK_CONFIG ?? join(homedir(), ".clawback", "config.json")
+  const configPath = process.env.CLAWBACK_CONFIG ?? join(homedir(), ".clawback", "config.json")
 
   if (!existsSync(configPath)) {
     return ConfigSchema.parse({})

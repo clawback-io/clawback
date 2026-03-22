@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig } from "./config.js"
-import { CronStore } from "./cron/store.js"
 import { CronScheduler } from "./cron/scheduler.js"
+import { CronStore } from "./cron/store.js"
 import { createMcpServer } from "./mcp.js"
 import { startWebhookServer } from "./webhook/server.js"
 
@@ -12,20 +12,14 @@ async function main() {
   // Create store and a placeholder scheduler (emitFn wired after MCP connects)
   const store = new CronStore(config.dataDir)
 
-  let emitChannelEvent: (
-    content: string,
-    meta: Record<string, string>,
-  ) => Promise<void>
+  let emitChannelEvent: (content: string, meta: Record<string, string>) => Promise<void>
 
   const scheduler = new CronScheduler(async (content, meta) => {
     // Delegate to the real emitFn once it's wired
     await emitChannelEvent(content, meta)
   })
 
-  const { server, emitChannelEvent: emitFn } = createMcpServer(
-    store,
-    scheduler,
-  )
+  const { server, emitChannelEvent: emitFn } = createMcpServer(store, scheduler)
   emitChannelEvent = emitFn
 
   // Connect MCP over stdio — must complete before any notifications

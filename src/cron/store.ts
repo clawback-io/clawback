@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, renameSync, readFileSync, writeFileSync } from "fs"
-import { dirname, join } from "path"
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import type { CronDefinition } from "./types.js"
 
 export class CronStore {
@@ -14,9 +14,7 @@ export class CronStore {
       return []
     }
     try {
-      const raw = JSON.parse(
-        readFileSync(this.filePath, "utf-8"),
-      )
+      const raw = JSON.parse(readFileSync(this.filePath, "utf-8"))
       return Array.isArray(raw) ? raw : []
     } catch {
       console.error(`[clawback] Failed to parse ${this.filePath}, starting empty`)
@@ -29,7 +27,7 @@ export class CronStore {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
     }
-    const tmp = this.filePath + ".tmp"
+    const tmp = `${this.filePath}.tmp`
     writeFileSync(tmp, JSON.stringify(crons, null, 2))
     renameSync(tmp, this.filePath)
   }

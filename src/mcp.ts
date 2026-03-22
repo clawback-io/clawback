@@ -1,11 +1,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
-import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js"
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { Cron } from "croner"
-import { CronStore } from "./cron/store.js"
-import { CronScheduler } from "./cron/scheduler.js"
+import type { CronScheduler } from "./cron/scheduler.js"
+import type { CronStore } from "./cron/store.js"
 
 export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
   const server = new Server(
@@ -18,15 +15,15 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
       instructions: [
         "Clawback is a channel that delivers two kinds of events:",
         "",
-        "1. **Webhook events** (meta.source = \"webhook\"): Raw HTTP payloads from external services.",
+        '1. **Webhook events** (meta.source = "webhook"): Raw HTTP payloads from external services.',
         "   You MUST act on these events, not just acknowledge them. Analyze the payload and take action:",
         "   - If the payload contains a URL to a PR or issue, review it or respond to it.",
         "   - If it looks like an error/alert, investigate the issue using available tools.",
         "   - If it contains a task or request, execute it.",
-        "   - Use the meta.path (e.g., \"/github\", \"/sentry\") as a hint about the source.",
+        '   - Use the meta.path (e.g., "/github", "/sentry") as a hint about the source.',
         "   - If you truly cannot determine what action to take, ask the user.",
         "",
-        "2. **Cron events** (meta.source = \"cron\"): Scheduled prompts that fire on a timer.",
+        '2. **Cron events** (meta.source = "cron"): Scheduled prompts that fire on a timer.',
         "   The content is the prompt or skill to execute — run it immediately as if the user typed it.",
         "",
         "Use the cron_create, cron_delete, and cron_list tools to manage persistent cron schedules.",
@@ -79,8 +76,7 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
       },
       {
         name: "cron_list",
-        description:
-          "List all persistent cron jobs with their IDs, schedules, and prompts.",
+        description: "List all persistent cron jobs with their IDs, schedules, and prompts.",
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -134,9 +130,7 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
           content: [
             {
               type: "text" as const,
-              text: removed
-                ? `Cron ${id} deleted.`
-                : `Cron ${id} not found.`,
+              text: removed ? `Cron ${id} deleted.` : `Cron ${id} not found.`,
             },
           ],
         }
@@ -146,15 +140,12 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
         const crons = store.list()
         if (crons.length === 0) {
           return {
-            content: [
-              { type: "text" as const, text: "No cron jobs configured." },
-            ],
+            content: [{ type: "text" as const, text: "No cron jobs configured." }],
           }
         }
 
         const lines = crons.map(
-          (c) =>
-            `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"} | ${c.prompt}`,
+          (c) => `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"} | ${c.prompt}`,
         )
         return {
           content: [
@@ -168,18 +159,13 @@ export function createMcpServer(store: CronStore, scheduler: CronScheduler) {
 
       default:
         return {
-          content: [
-            { type: "text" as const, text: `Unknown tool: ${name}` },
-          ],
+          content: [{ type: "text" as const, text: `Unknown tool: ${name}` }],
           isError: true,
         }
     }
   })
 
-  async function emitChannelEvent(
-    content: string,
-    meta: Record<string, string>,
-  ): Promise<void> {
+  async function emitChannelEvent(content: string, meta: Record<string, string>): Promise<void> {
     await server.notification({
       method: "notifications/claude/channel",
       params: { content, meta },
