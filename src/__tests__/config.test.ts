@@ -17,53 +17,51 @@ afterEach(() => {
 })
 
 describe("loadConfig", () => {
-  test("returns defaults when config file does not exist", () => {
-    process.env.CLAWBACK_CONFIG = join(tmpDir, "nonexistent.json")
-    const config = loadConfig()
-
-    expect(config.webhookPort).toBe(18788)
-    expect(config.webhookHost).toBe("127.0.0.1")
-    expect(config.skills).toEqual({})
-    expect(config.dataDir).toBeString()
-  })
-
-  test("loads and parses a valid config file", () => {
+  test("loads a valid config with remote and connectionToken", () => {
     const configPath = join(tmpDir, "config.json")
     writeFileSync(
       configPath,
       JSON.stringify({
-        webhookPort: 9999,
-        webhookHost: "0.0.0.0",
-        skills: { "/github": "/review" },
+        remote: "wss://clawback.fly.dev/ws",
+        connectionToken: "cbt_abc123",
       }),
     )
     process.env.CLAWBACK_CONFIG = configPath
 
     const config = loadConfig()
-    expect(config.webhookPort).toBe(9999)
-    expect(config.webhookHost).toBe("0.0.0.0")
-    expect(config.skills).toEqual({ "/github": "/review" })
+    expect(config.remote).toBe("wss://clawback.fly.dev/ws")
+    expect(config.connectionToken).toBe("cbt_abc123")
+    expect(config.dataDir).toBeString()
   })
 
-  test("applies defaults for missing fields", () => {
+  test("accepts ws:// URLs for local development", () => {
     const configPath = join(tmpDir, "config.json")
-    writeFileSync(configPath, JSON.stringify({ webhookPort: 3000 }))
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        remote: "ws://localhost:3000/ws",
+        connectionToken: "cbt_dev",
+      }),
+    )
     process.env.CLAWBACK_CONFIG = configPath
 
     const config = loadConfig()
-    expect(config.webhookPort).toBe(3000)
-    expect(config.webhookHost).toBe("127.0.0.1")
-    expect(config.skills).toEqual({})
+    expect(config.remote).toBe("ws://localhost:3000/ws")
   })
 
-  test("accepts empty object and returns all defaults", () => {
+  test("allows custom dataDir", () => {
     const configPath = join(tmpDir, "config.json")
-    writeFileSync(configPath, "{}")
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        remote: "wss://example.com/ws",
+        connectionToken: "cbt_abc",
+        dataDir: "/tmp/custom-clawback",
+      }),
+    )
     process.env.CLAWBACK_CONFIG = configPath
 
     const config = loadConfig()
-    expect(config.webhookPort).toBe(18788)
-    expect(config.webhookHost).toBe("127.0.0.1")
-    expect(config.skills).toEqual({})
+    expect(config.dataDir).toBe("/tmp/custom-clawback")
   })
 })

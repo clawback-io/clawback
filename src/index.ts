@@ -1,18 +1,12 @@
 #!/usr/bin/env bun
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig } from "./config.js"
-import { ActivityLog } from "./activity.js"
-import { CronScheduler } from "./cron/scheduler.js"
-import { CronStore } from "./cron/store.js"
-import { EventQueue } from "./queue.js"
 import { createMcpServer } from "./mcp.js"
-import { startWebhookServer } from "./webhook/server.js"
+import { EventQueue } from "./queue.js"
+import { RemoteClient } from "./ws/client.js"
 
 async function main() {
   const config = loadConfig()
-
-  const store = new CronStore(config.dataDir)
-  const activityLog = new ActivityLog(config.dataDir)
 
   // emitChannelEvent will be set once MCP connects
   let emitChannelEvent: (content: string, meta: Record<string, string>) => Promise<void>
@@ -22,12 +16,18 @@ async function main() {
     emitFn: async (content, meta) => {
       await emitChannelEvent(content, meta)
     },
-    activityLog,
   })
 
-  const scheduler = new CronScheduler(eventQueue)
+  const remoteClient = new RemoteClient({
+    url: config.remote,
+    token: config.connectionToken,
+    eventQueue,
+  })
 
-  const { server, emitChannelEvent: emitFn } = createMcpServer(store, scheduler, eventQueue)
+  const { server, emitChannelEvent: emitFn } = createMcpServer({
+    eventQueue,
+    remoteClient,
+  })
   emitChannelEvent = emitFn
 
   // Connect MCP over stdio — must complete before any notifications
@@ -35,36 +35,17 @@ async function main() {
   await server.connect(transport)
   console.error("[clawback] MCP channel connected")
 
-  // Load persistent crons and start scheduling
-  const crons = store.load()
-  scheduler.startAll(crons)
-  console.error(`[clawback] Loaded ${crons.length} persistent cron(s)`)
-
-  // Start webhook HTTP server
-  let webhookServer: ReturnType<typeof startWebhookServer> | null = null
-  try {
-    webhookServer = startWebhookServer({
-      port: config.webhookPort,
-      host: config.webhookHost,
-      eventQueue,
-      skills: config.skills,
-    })
-  } catch (err) {
-    console.error(
-      `[clawback] Webhook server failed to start on ${config.webhookHost}:${config.webhookPort}:`,
-      err,
-    )
-    console.error("[clawback] Continuing with cron-only mode")
-  }
+  // Connect to remote server
+  remoteClient.connect()
+  console.error(`[clawback] Connecting to ${config.remote}`)
 
   console.error("[clawback] Ready")
 
   // Graceful shutdown
   const shutdown = () => {
     console.error("[clawback] Shutting down...")
-    scheduler.stopAll()
+    remoteClient.shutdown()
     eventQueue.shutdown()
-    webhookServer?.stop()
     server.close()
     process.exit(0)
   }

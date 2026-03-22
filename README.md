@@ -1,23 +1,49 @@
 # Clawback
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) channel plugin that gives your session **persistent cron scheduling** and a **general-purpose webhook receiver**.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) channel plugin that connects to a hosted [Clawback server](https://github.com/clawback-io/clawback-server) for persistent cron scheduling and webhook delivery.
 
-Claude Code's built-in crons are session-scoped and expire after 7 days. Clawback stores them on disk so they survive restarts — forever. It also runs a local HTTP server that forwards any incoming webhook straight into your Claude Code session, where Claude decides what to do with it (or invokes a skill you've mapped).
+## How it works
 
-## Features
+Clawback has two parts:
 
-- **Persistent Crons** — Stored in `~/.clawback/crons.json`, managed via MCP tools. No expiry, loads automatically on startup.
-- **Webhook Receiver** — Any POST to `localhost:18788` gets forwarded as a channel notification. Expose publicly via ngrok/Cloudflare Tunnel for external sources (GitHub, Sentry, etc).
-- **Skill Mapping** — Optionally map webhook paths to skills (e.g., `/github` → `/review`). Unmapped paths let Claude decide what to do.
-- **Batching** — Multiple webhooks arriving within 5 seconds are batched into a single notification, preventing Claude from being interrupted mid-task.
-- **Sequential Event Queue** — All events (webhooks + crons) are dispatched one at a time. Claude calls `event_ack` when done, which releases the next event. Includes a reminder nudge (2 min) and auto-advance timeout (5 min) as safety nets.
-- **Activity Log** — Every processed event is logged to `~/.clawback/activity.json` with a summary of what Claude did, timing, and whether it timed out. Capped at 500 entries for easy review.
+1. **This plugin** — a thin WebSocket client that runs as a Claude Code MCP server. It receives events from the remote server and dispatches them as channel notifications to Claude.
+2. **The server** ([`clawback-server`](https://github.com/clawback-io/clawback-server)) — a hosted service that receives webhooks, runs crons, manages accounts, and pushes events to connected plugins via WebSocket.
+
+```
+External Services ──POST──▶ Clawback Server ◀──WebSocket──▶ This Plugin ──▶ Claude Code
+                            (Fly.io / local)                (MCP over stdio)
+```
+
+Events are dispatched one at a time. Claude processes each event and calls `event_ack` to release the next. A reminder fires after 2 minutes, and a timeout auto-advances after 5 minutes.
 
 ## Quick Start
 
+### 1. Set up the server
+
+See the [clawback-server README](https://github.com/clawback-io/clawback-server) for server setup. For local development:
+
 ```bash
-# Clone and install
-git clone https://github.com/clawback-io/clawback.git
+cd clawback-server
+docker compose up -d        # Start Postgres
+bun run db:push             # Create tables
+bun run db:seed             # Create dev user + connection token
+bun run dev                 # Start server on port 3000
+```
+
+### 2. Configure the plugin
+
+Create `~/.clawback/config.json` with the token from the seed output:
+
+```json
+{
+  "remote": "ws://localhost:3000/ws",
+  "connectionToken": "cbt_your_token_here"
+}
+```
+
+### 3. Register and launch
+
+```bash
 cd clawback
 bun install
 
@@ -30,138 +56,61 @@ claude --dangerously-load-development-channels server:clawback
 
 > **Note**: Do not use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
 
-## Usage
+### 4. Test it
 
-### Webhooks
-
-Send any POST request to the webhook server:
+Send a webhook to the server (use the webhook ID from the seed output):
 
 ```bash
-curl -X POST http://127.0.0.1:18788/github \
+curl -X POST http://localhost:3000/webhooks/<your-webhook-id>/test \
   -H 'Content-Type: application/json' \
-  -d '{"action":"opened","number":42,"pull_request":{"html_url":"https://github.com/org/repo/pull/42"}}'
+  -d '{"message":"Hello from the server!"}'
 ```
 
-Claude receives the payload and takes action based on the content. With a skill mapping configured (see [Configuration](#configuration)), it will invoke the mapped skill automatically.
-
-To receive webhooks from external services, expose the port with a tunnel:
-
-```bash
-ngrok http 18788
-```
-
-Then use the ngrok URL as your webhook endpoint in GitHub, Sentry, Linear, etc.
-
-### Crons
-
-Crons are managed through Claude Code — just ask:
-
-> "Create a cron that runs /catchup every morning at 9am"
-
-Claude will use the `cron_create` tool to persist it. The cron survives across sessions and fires the specified prompt/skill each time.
-
-You can also manage them directly:
-
-- **Create**: Claude calls `cron_create` with a schedule and prompt
-- **List**: Claude calls `cron_list` to show all active crons
-- **Delete**: Claude calls `cron_delete` with the cron ID
-
-Cron definitions are stored in `~/.clawback/crons.json`:
-
-```json
-[
-  {
-    "id": "a1b2c3d4e5f6",
-    "schedule": "0 9 * * *",
-    "prompt": "/catchup",
-    "label": "morning-catchup",
-    "createdAt": "2026-03-22T10:00:00Z"
-  }
-]
-```
+Claude will receive the event and act on it.
 
 ## Configuration
 
-Create `~/.clawback/config.json` (optional — all fields have defaults):
+`~/.clawback/config.json`:
 
 ```json
 {
-  "webhookPort": 18788,
-  "webhookHost": "127.0.0.1",
-  "dataDir": "~/.clawback",
-  "skills": {
-    "/github": "/review",
-    "/alert": "Investigate this error and suggest a fix"
-  }
+  "remote": "wss://your-server.fly.dev/ws",
+  "connectionToken": "cbt_your_token_here"
 }
 ```
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `webhookPort` | `18788` | Port for the webhook HTTP server |
-| `webhookHost` | `127.0.0.1` | Host to bind the webhook server to |
-| `dataDir` | `~/.clawback` | Directory for persistent data (crons.json) |
-| `skills` | `{}` | Map of webhook path → skill/prompt to invoke |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `remote` | Yes | WebSocket URL of the Clawback server (`ws://` for local, `wss://` for production) |
+| `connectionToken` | Yes | Connection token from the server (starts with `cbt_`) |
+| `dataDir` | No | Local data directory (default: `~/.clawback`) |
 
-### Skill Mapping
+## Features
 
-When a webhook arrives at a path that matches a key in `skills`, the skill is prepended to the notification:
-
-```
-/review
-
-Context:
-{"action":"opened","number":42,"pull_request":{"html_url":"..."}}
-```
-
-Claude then invokes the skill with the webhook payload as context. Paths without a mapping forward the raw payload and let Claude decide what to do.
-
-## How It Works
-
-Clawback is an MCP server that declares the `claude/channel` capability. It connects to Claude Code over stdio as a subprocess.
-
-```
-External Service ──POST──▶ Bun.serve(:18788) ──5s debounce──▶ EventQueue
-                                                                  │
-croner tick ─────────────────────────────────────────────────▶ EventQueue
-                                                                  │
-                                                          (one at a time)
-                                                                  │
-                                                                  ▼
-                                                        channel notification ──▶ Claude Code
-                                                                                  Claude processes,
-                                                                                  then calls event_ack
-                                                                                        │
-                                                                                        ▼
-                                                                                  next event dispatched
-
-Claude Code ──tool call──▶ cron_create / cron_delete / cron_list / event_ack
-```
+- **Webhooks** — External services POST to the server, events are pushed to Claude in real-time via WebSocket
+- **Crons** — Create persistent cron jobs through Claude ("create a cron that runs /catchup every morning at 9am"). Crons are stored on the server and survive across sessions.
+- **Webhook Verification** — The server supports GitHub HMAC-SHA256, Stripe signatures, and generic HMAC verification
+- **Multi-account** — The server supports multiple users with isolated event queues, webhook sources, and cron jobs
+- **Auto-reconnect** — If the WebSocket connection drops, the plugin reconnects automatically with exponential backoff. Events queue up on the server and drain when you reconnect.
+- **Sequential Dispatch** — Events are delivered one at a time. Claude calls `event_ack` when done, releasing the next event. Includes a reminder nudge (2 min) and timeout (5 min) as safety nets.
 
 ## Project Structure
 
 ```
 src/
-  index.ts              Entry point — wires MCP, cron, webhook, queue; startup/shutdown
-  mcp.ts                MCP server, channel capability, cron CRUD + event_ack tools
-  queue.ts              EventQueue — one-at-a-time dispatch with ack, reminder, timeout
-  activity.ts           ActivityLog — persistent log of completed events
+  index.ts              Entry point — config, WS client, MCP server, shutdown
+  mcp.ts                MCP server with channel capability + cron/ack tools
+  queue.ts              EventQueue — one-at-a-time dispatch with reminder + timeout
   config.ts             Loads ~/.clawback/config.json
-  cron/
-    store.ts            Persistent JSON storage with atomic writes
-    scheduler.ts        Wraps croner, enqueues events into EventQueue
-    types.ts            CronDefinition interface
-  webhook/
-    server.ts           Bun.serve with debounce batching, enqueues into EventQueue
-    types.ts            WebhookMeta interface
+  ws/
+    client.ts           WebSocket client with auto-reconnect + heartbeat
+    protocol.ts         Shared message types (ServerMessage, ClientMessage)
 ```
 
 ## Dependencies
 
-Just two runtime dependencies:
-
 - [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/sdk) — MCP server + stdio transport
-- [`croner`](https://github.com/Hexagon/croner) — Cron scheduling (pure JS, zero deps)
+- [`croner`](https://github.com/Hexagon/croner) — Cron expression validation
 
 ## License
 

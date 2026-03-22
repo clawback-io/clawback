@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
-import { EventQueue, type EmitFn } from "../queue.js"
-import type { ActivityLog, ActivityEntry } from "../activity.js"
+import { type EmitFn, EventQueue } from "../queue.js"
 
 function makeEvent(id: string, meta: Record<string, string> = {}) {
   return {
@@ -9,24 +8,12 @@ function makeEvent(id: string, meta: Record<string, string> = {}) {
   }
 }
 
-function mockActivityLog() {
-  const entries: ActivityEntry[] = []
-  const log = {
-    entries,
-    load: () => entries,
-    list: () => entries,
-    append: (entry: ActivityEntry) => { entries.push(entry) },
-  } as unknown as ActivityLog & { entries: ActivityEntry[] }
-  return log
-}
-
 function makeQueue(
   emitFn: ReturnType<typeof mock>,
-  opts: Partial<{ reminderDelayMs: number; timeoutMs: number; activityLog: ReturnType<typeof mockActivityLog> }> = {},
+  opts: Partial<{ reminderDelayMs: number; timeoutMs: number }> = {},
 ) {
   return new EventQueue({
     emitFn,
-    activityLog: opts.activityLog ?? mockActivityLog(),
     reminderDelayMs: opts.reminderDelayMs,
     timeoutMs: opts.timeoutMs,
   })
@@ -265,122 +252,19 @@ describe("EventQueue", () => {
     expect(emitFn.mock.calls[1][0]).toBe("event-b")
     expect(emitFn.mock.calls[2][0]).toBe("event-c")
   })
-})
 
-describe("EventQueue activity logging", () => {
-  let queue: EventQueue
-
-  afterEach(() => {
-    queue?.shutdown()
-  })
-
-  test("ack records activity entry with summary", async () => {
+  test("inflightMeta returns current event meta", async () => {
     const emitFn = mock<EmitFn>(async () => {})
-    const log = mockActivityLog()
-    queue = makeQueue(emitFn, { activityLog: log })
+    queue = makeQueue(emitFn)
 
-    queue.enqueue(makeEvent("1", { source: "webhook", path: "/github", skill: "/review" }))
+    expect(queue.inflightMeta).toBeNull()
+
+    queue.enqueue(makeEvent("1", { remoteEventId: "evt_remote" }))
     await new Promise((r) => setTimeout(r, 10))
 
-    queue.ack("Reviewed PR #42")
-
-    expect(log.entries).toHaveLength(1)
-    const entry = log.entries[0]
-    expect(entry.summary).toBe("Reviewed PR #42")
-    expect(entry.source).toBe("webhook")
-    expect(entry.path).toBe("/github")
-    expect(entry.skill).toBe("/review")
-    expect(entry.timedOut).toBe(false)
-    expect(entry.durationMs).toBeGreaterThanOrEqual(0)
-    expect(entry.id).toMatch(/^evt_/)
-    expect(entry.dispatchedAt).toBeTruthy()
-    expect(entry.completedAt).toBeTruthy()
-  })
-
-  test("ack without summary records empty string", async () => {
-    const emitFn = mock<EmitFn>(async () => {})
-    const log = mockActivityLog()
-    queue = makeQueue(emitFn, { activityLog: log })
-
-    queue.enqueue(makeEvent("1"))
-    await new Promise((r) => setTimeout(r, 10))
+    expect(queue.inflightMeta?.remoteEventId).toBe("evt_remote")
 
     queue.ack()
-
-    expect(log.entries).toHaveLength(1)
-    expect(log.entries[0].summary).toBe("")
-  })
-
-  test("timeout records activity with timedOut=true", async () => {
-    const emitFn = mock<EmitFn>(async () => {})
-    const log = mockActivityLog()
-    queue = makeQueue(emitFn, { activityLog: log, reminderDelayMs: 5000, timeoutMs: 50 })
-
-    queue.enqueue(makeEvent("1"))
-    await new Promise((r) => setTimeout(r, 100))
-
-    expect(log.entries).toHaveLength(1)
-    expect(log.entries[0].timedOut).toBe(true)
-    expect(log.entries[0].summary).toBe("")
-  })
-
-  test("records queueDepth at dispatch time", async () => {
-    const emitFn = mock<EmitFn>(async () => {})
-    const log = mockActivityLog()
-    queue = makeQueue(emitFn, { activityLog: log })
-
-    queue.enqueue(makeEvent("1"))
-    queue.enqueue(makeEvent("2"))
-    queue.enqueue(makeEvent("3"))
-
-    await new Promise((r) => setTimeout(r, 10))
-
-    queue.ack("first")
-    await new Promise((r) => setTimeout(r, 10))
-
-    queue.ack("second")
-    await new Promise((r) => setTimeout(r, 10))
-
-    queue.ack("third")
-
-    expect(log.entries).toHaveLength(3)
-    expect(log.entries[0].queueDepth).toBe(0) // dispatched immediately, nothing behind it yet
-    expect(log.entries[1].queueDepth).toBe(1) // 1 remaining when dispatched
-    expect(log.entries[2].queueDepth).toBe(0)
-  })
-
-  test("records cronId for cron events", async () => {
-    const emitFn = mock<EmitFn>(async () => {})
-    const log = mockActivityLog()
-    queue = makeQueue(emitFn, { activityLog: log })
-
-    queue.enqueue(makeEvent("1", { source: "cron", cronId: "abc123" }))
-    await new Promise((r) => setTimeout(r, 10))
-
-    queue.ack("ran catchup")
-
-    expect(log.entries[0].cronId).toBe("abc123")
-    expect(log.entries[0].source).toBe("cron")
-  })
-
-  test("multiple acks build up activity history", async () => {
-    const emitFn = mock<EmitFn>(async () => {})
-    const log = mockActivityLog()
-    queue = makeQueue(emitFn, { activityLog: log })
-
-    queue.enqueue(makeEvent("a"))
-    await new Promise((r) => setTimeout(r, 10))
-    queue.ack("did A")
-
-    queue.enqueue(makeEvent("b"))
-    await new Promise((r) => setTimeout(r, 10))
-    queue.ack("did B")
-
-    queue.enqueue(makeEvent("c"))
-    await new Promise((r) => setTimeout(r, 10))
-    queue.ack("did C")
-
-    expect(log.entries).toHaveLength(3)
-    expect(log.entries.map((e) => e.summary)).toEqual(["did A", "did B", "did C"])
+    expect(queue.inflightMeta).toBeNull()
   })
 })

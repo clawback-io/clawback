@@ -1,9 +1,4 @@
-import type { ActivityLog } from "./activity.js"
-
-export type EmitFn = (
-  content: string,
-  meta: Record<string, string>,
-) => Promise<void>
+export type EmitFn = (content: string, meta: Record<string, string>) => Promise<void>
 
 export interface QueuedEvent {
   content: string
@@ -12,7 +7,6 @@ export interface QueuedEvent {
 
 export interface EventQueueOptions {
   emitFn: EmitFn
-  activityLog: ActivityLog
   /** How long to wait before sending a reminder nudge (ms). Default: 120000 (2 min) */
   reminderDelayMs?: number
   /** How long to wait before giving up on ack and moving on (ms). Default: 300000 (5 min) */
@@ -37,13 +31,11 @@ export class EventQueue {
   private reminderSent = false
 
   private emitFn: EmitFn
-  private activityLog: ActivityLog
   private reminderDelayMs: number
   private timeoutMs: number
 
   constructor(opts: EventQueueOptions) {
     this.emitFn = opts.emitFn
-    this.activityLog = opts.activityLog
     this.reminderDelayMs = opts.reminderDelayMs ?? DEFAULT_REMINDER_DELAY_MS
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   }
@@ -56,6 +48,11 @@ export class EventQueue {
     return this.inflight
   }
 
+  /** Meta of the currently inflight event (if any). Used to extract remoteEventId for acks. */
+  get inflightMeta(): Record<string, string> | null {
+    return this.inflightCtx?.meta ?? null
+  }
+
   enqueue(event: QueuedEvent): void {
     this.queue.push(event)
     console.error(
@@ -65,81 +62,49 @@ export class EventQueue {
   }
 
   /** Called when Claude acknowledges it finished processing the current event. */
-  ack(summary?: string): void {
+  ack(_summary?: string): void {
     if (!this.inflight) {
       console.error("[clawback] Ack received but nothing inflight — ignoring")
       return
     }
     console.error("[clawback] Ack received, dispatching next")
-    this.recordActivity(summary ?? "", false)
     this.clearTimers()
     this.inflight = false
     this.inflightCtx = null
     this.tryDispatch()
   }
 
-  private recordActivity(summary: string, timedOut: boolean): void {
-    const ctx = this.inflightCtx
-    if (!ctx) return
-
-    const completedAt = new Date().toISOString()
-    const durationMs = new Date(completedAt).getTime() - new Date(ctx.dispatchedAt).getTime()
-
-    try {
-      this.activityLog.append({
-        id: `evt_${crypto.randomUUID().slice(0, 8)}`,
-        source: ctx.meta.source ?? "",
-        path: ctx.meta.path ?? "",
-        skill: ctx.meta.skill ?? "",
-        cronId: ctx.meta.cronId ?? "",
-        summary,
-        dispatchedAt: ctx.dispatchedAt,
-        completedAt,
-        durationMs,
-        queueDepth: ctx.queueDepth,
-        timedOut,
-      })
-    } catch (err) {
-      console.error("[clawback] Failed to write activity log:", err)
-    }
-  }
-
   private tryDispatch(): void {
     if (this.inflight || this.queue.length === 0) return
 
-    const event = this.queue.shift()!
+    const event = this.queue.shift()
+    if (!event) return
     this.inflight = true
     this.reminderSent = false
 
     const queueDepth = this.queue.length
 
-    // Store context for activity logging
     this.inflightCtx = {
       meta: event.meta,
       dispatchedAt: new Date().toISOString(),
       queueDepth,
     }
 
-    // Include queue depth so Claude knows how much is waiting
     const meta = {
       ...event.meta,
       queueDepth: String(queueDepth),
     }
 
-    console.error(
-      `[clawback] Dispatching event (${queueDepth} remaining in queue)`,
-    )
+    console.error(`[clawback] Dispatching event (${queueDepth} remaining in queue)`)
 
     this.emitFn(event.content, meta).catch((err) => {
       console.error("[clawback] Event dispatch failed:", err)
-      // On failure, release the lock so the queue doesn't stall
       this.clearTimers()
       this.inflight = false
       this.inflightCtx = null
       this.tryDispatch()
     })
 
-    // Start reminder and timeout timers
     this.startTimers()
   }
 
@@ -169,11 +134,9 @@ export class EventQueue {
     this.reminderSent = true
 
     const waiting = this.queue.length
-    if (waiting === 0) return // No point reminding if nothing is queued
+    if (waiting === 0) return
 
-    console.error(
-      `[clawback] Sending ack reminder (${waiting} events waiting)`,
-    )
+    console.error(`[clawback] Sending ack reminder (${waiting} events waiting)`)
 
     this.emitFn(
       `Reminder: when you finish your current task, call the event_ack tool. ${waiting} event${waiting === 1 ? "" : "s"} waiting. Do NOT stop what you are doing — just call event_ack when you are naturally done.`,
@@ -189,10 +152,7 @@ export class EventQueue {
 
   private onTimeout(): void {
     if (!this.inflight) return
-    console.error(
-      `[clawback] Ack timeout (${this.timeoutMs}ms) — moving on to next event`,
-    )
-    this.recordActivity("", true)
+    console.error(`[clawback] Ack timeout (${this.timeoutMs}ms) — moving on to next event`)
     this.clearTimers()
     this.inflight = false
     this.inflightCtx = null
