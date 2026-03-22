@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
-import { EventQueue, type EmitFn } from "../queue.js"
+import { type EmitFn, EventQueue } from "../queue.js"
 import { RemoteClient } from "../ws/client.js"
 
 let wsServer: ReturnType<typeof Bun.serve> | null = null
-let serverSockets: Set<any> = new Set()
+let serverSockets: Set<Bun.ServerWebSocket<unknown>> = new Set()
 
-function startMockWsServer(
-  handler?: (ws: any, message: string) => void,
-): { port: number } {
+function startMockWsServer(handler?: (ws: Bun.ServerWebSocket<unknown>, message: string) => void): {
+  port: number
+} {
   serverSockets = new Set()
   wsServer = Bun.serve({
     port: 0,
@@ -33,7 +33,7 @@ function startMockWsServer(
       },
     },
   })
-  return { port: wsServer!.port as number }
+  return { port: wsServer?.port as number }
 }
 
 afterEach(() => {
@@ -68,7 +68,9 @@ describe("RemoteClient", () => {
       url: `ws://localhost:${port}`,
       token: "valid-token",
       eventQueue,
-      onOpen: () => { connected = true },
+      onOpen: () => {
+        connected = true
+      },
     })
     client.connect()
 
@@ -109,7 +111,7 @@ describe("RemoteClient", () => {
 
   test("responds to ping with pong", async () => {
     const receivedMessages: string[] = []
-    const { port } = startMockWsServer((ws, msg) => {
+    const { port } = startMockWsServer((_ws, msg) => {
       receivedMessages.push(msg)
     })
 
@@ -138,7 +140,7 @@ describe("RemoteClient", () => {
 
   test("sends ack to server", async () => {
     const receivedMessages: string[] = []
-    const { port } = startMockWsServer((ws, msg) => {
+    const { port } = startMockWsServer((_ws, msg) => {
       receivedMessages.push(msg)
     })
 
@@ -155,9 +157,7 @@ describe("RemoteClient", () => {
 
     await new Promise((r) => setTimeout(r, 50))
 
-    const acks = receivedMessages
-      .map((m) => JSON.parse(m))
-      .filter((m) => m.type === "ack")
+    const acks = receivedMessages.map((m) => JSON.parse(m)).filter((m) => m.type === "ack")
 
     expect(acks.length).toBe(1)
     expect(acks[0].eventId).toBe("evt_123")
@@ -166,7 +166,7 @@ describe("RemoteClient", () => {
 
   test("queues acks when disconnected and flushes on reconnect", async () => {
     const receivedMessages: string[] = []
-    const { port } = startMockWsServer((ws, msg) => {
+    const { port } = startMockWsServer((_ws, msg) => {
       receivedMessages.push(msg)
     })
 
@@ -183,9 +183,7 @@ describe("RemoteClient", () => {
     client.connect()
     await new Promise((r) => setTimeout(r, 200))
 
-    const acks = receivedMessages
-      .map((m) => JSON.parse(m))
-      .filter((m) => m.type === "ack")
+    const acks = receivedMessages.map((m) => JSON.parse(m)).filter((m) => m.type === "ack")
 
     expect(acks.length).toBe(1)
     expect(acks[0].eventId).toBe("evt_offline")
@@ -219,9 +217,7 @@ describe("RemoteClient", () => {
       requestId: "req_test",
     })
 
-    expect(result).toEqual([
-      { id: "cron_1", schedule: "0 9 * * *", prompt: "/catchup" },
-    ])
+    expect(result).toEqual([{ id: "cron_1", schedule: "0 9 * * *", prompt: "/catchup" }])
   })
 
   test("request rejects on server error response", async () => {
@@ -274,13 +270,15 @@ describe("RemoteClient", () => {
 
   test("shutdown closes connection", async () => {
     const { port } = startMockWsServer()
-    let disconnected = false
+    let _disconnected = false
 
     client = new RemoteClient({
       url: `ws://localhost:${port}`,
       token: "valid-token",
       eventQueue,
-      onClose: () => { disconnected = true },
+      onClose: () => {
+        _disconnected = true
+      },
     })
     client.connect()
 

@@ -1,7 +1,4 @@
-export type EmitFn = (
-  content: string,
-  meta: Record<string, string>,
-) => Promise<void>
+export type EmitFn = (content: string, meta: Record<string, string>) => Promise<void>
 
 export interface QueuedEvent {
   content: string
@@ -65,7 +62,7 @@ export class EventQueue {
   }
 
   /** Called when Claude acknowledges it finished processing the current event. */
-  ack(summary?: string): void {
+  ack(_summary?: string): void {
     if (!this.inflight) {
       console.error("[clawback] Ack received but nothing inflight — ignoring")
       return
@@ -80,7 +77,8 @@ export class EventQueue {
   private tryDispatch(): void {
     if (this.inflight || this.queue.length === 0) return
 
-    const event = this.queue.shift()!
+    const event = this.queue.shift()
+    if (!event) return
     this.inflight = true
     this.reminderSent = false
 
@@ -97,9 +95,7 @@ export class EventQueue {
       queueDepth: String(queueDepth),
     }
 
-    console.error(
-      `[clawback] Dispatching event (${queueDepth} remaining in queue)`,
-    )
+    console.error(`[clawback] Dispatching event (${queueDepth} remaining in queue)`)
 
     this.emitFn(event.content, meta).catch((err) => {
       console.error("[clawback] Event dispatch failed:", err)
@@ -140,9 +136,7 @@ export class EventQueue {
     const waiting = this.queue.length
     if (waiting === 0) return
 
-    console.error(
-      `[clawback] Sending ack reminder (${waiting} events waiting)`,
-    )
+    console.error(`[clawback] Sending ack reminder (${waiting} events waiting)`)
 
     this.emitFn(
       `Reminder: when you finish your current task, call the event_ack tool. ${waiting} event${waiting === 1 ? "" : "s"} waiting. Do NOT stop what you are doing — just call event_ack when you are naturally done.`,
@@ -158,9 +152,7 @@ export class EventQueue {
 
   private onTimeout(): void {
     if (!this.inflight) return
-    console.error(
-      `[clawback] Ack timeout (${this.timeoutMs}ms) — moving on to next event`,
-    )
+    console.error(`[clawback] Ack timeout (${this.timeoutMs}ms) — moving on to next event`)
     this.clearTimers()
     this.inflight = false
     this.inflightCtx = null

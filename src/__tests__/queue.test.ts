@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
-import { EventQueue, type EmitFn } from "../queue.js"
+import { type EmitFn, EventQueue } from "../queue.js"
 
 function makeEvent(id: string, meta: Record<string, string> = {}) {
   return {

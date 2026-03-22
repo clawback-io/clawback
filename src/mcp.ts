@@ -120,15 +120,17 @@ export function createMcpServer(opts: McpServerOptions) {
             },
             type: {
               type: "string",
-              description: 'Verification type: "github" (X-Hub-Signature-256), "stripe" (Stripe-Signature), "generic" (HMAC-SHA256), or "none" (no verification). Default: "generic"',
+              description:
+                'Verification type: "github" (X-Hub-Signature-256), "stripe" (Stripe-Signature), "generic" (HMAC-SHA256), or "none" (no verification). Default: "generic"',
             },
             secret: {
               type: "string",
-              description: "Webhook secret for HMAC verification. Not needed if type is \"none\".",
+              description: 'Webhook secret for HMAC verification. Not needed if type is "none".',
             },
             skill: {
               type: "string",
-              description: 'Optional skill or prompt to prepend when this webhook fires (e.g., "/review", "Investigate this error")',
+              description:
+                'Optional skill or prompt to prepend when this webhook fires (e.g., "/review", "Investigate this error")',
             },
           },
           required: ["slug"],
@@ -136,7 +138,8 @@ export function createMcpServer(opts: McpServerOptions) {
       },
       {
         name: "source_list",
-        description: "List all configured webhook sources with their slugs, verification types, and skills.",
+        description:
+          "List all configured webhook sources with their slugs, verification types, and skills.",
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -158,7 +161,8 @@ export function createMcpServer(opts: McpServerOptions) {
       },
       {
         name: "activity_list",
-        description: "View recent activity log — shows what events were processed, summaries, and timing.",
+        description:
+          "View recent activity log — shows what events were processed, summaries, and timing.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -171,7 +175,8 @@ export function createMcpServer(opts: McpServerOptions) {
       },
       {
         name: "account_info",
-        description: "Show account info including the webhook base URL for configuring external services.",
+        description:
+          "Show account info including the webhook base URL for configuring external services.",
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -282,8 +287,7 @@ export function createMcpServer(opts: McpServerOptions) {
             }
           }
           const lines = crons.map(
-            (c) =>
-              `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"} | ${c.prompt}`,
+            (c) => `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"} | ${c.prompt}`,
           )
           return {
             content: [
@@ -323,9 +327,10 @@ export function createMcpServer(opts: McpServerOptions) {
           content: [
             {
               type: "text" as const,
-              text: pending > 0
-                ? `Acknowledged. ${pending} event${pending === 1 ? "" : "s"} still queued — next one incoming.`
-                : "Acknowledged. No more events in the queue.",
+              text:
+                pending > 0
+                  ? `Acknowledged. ${pending} event${pending === 1 ? "" : "s"} still queued — next one incoming.`
+                  : "Acknowledged. No more events in the queue.",
             },
           ],
         }
@@ -457,7 +462,8 @@ export function createMcpServer(opts: McpServerOptions) {
             }
           }
           const lines = entries.map((e) => {
-            const dur = e.durationMs < 1000 ? `${e.durationMs}ms` : `${(e.durationMs / 1000).toFixed(1)}s`
+            const dur =
+              e.durationMs < 1000 ? `${e.durationMs}ms` : `${(e.durationMs / 1000).toFixed(1)}s`
             const timeout = e.timedOut ? " [TIMED OUT]" : ""
             return `- ${e.completedAt} | ${e.source}${e.path ? ` ${e.path}` : ""} | ${dur}${timeout}\n  ${e.summary || "(no summary)"}`
           })

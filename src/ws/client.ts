@@ -1,9 +1,9 @@
 import type { EventQueue, QueuedEvent } from "../queue.js"
 import {
   type ClientMessage,
-  type ServerMessage,
   encodeClientMessage,
   parseServerMessage,
+  type ServerMessage,
 } from "./protocol.js"
 
 export interface RemoteClientOptions {
@@ -123,9 +123,7 @@ export class RemoteClient {
     this.eventQueue.enqueue(event)
   }
 
-  private handleResponse(
-    msg: Extract<ServerMessage, { type: "response" }>,
-  ): void {
+  private handleResponse(msg: Extract<ServerMessage, { type: "response" }>): void {
     const pending = this.pendingRequests.get(msg.requestId)
     if (!pending) return
 
@@ -210,9 +208,7 @@ export class RemoteClient {
   private scheduleReconnect(): void {
     if (this.closed) return
 
-    console.error(
-      `[clawback] Reconnecting in ${this.reconnectMs}ms`,
-    )
+    console.error(`[clawback] Reconnecting in ${this.reconnectMs}ms`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect()
