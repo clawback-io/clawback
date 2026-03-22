@@ -8,7 +8,7 @@ interface QueuedEvent {
   meta: Record<string, string>
 }
 
-function findSkill(pathname: string, skills: Record<string, string>): string | null {
+export function findSkill(pathname: string, skills: Record<string, string>): string | null {
   if (skills[pathname]) return skills[pathname]
   let best: string | null = null
   let bestLen = 0
