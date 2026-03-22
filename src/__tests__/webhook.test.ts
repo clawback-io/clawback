@@ -1,5 +1,6 @@
-import { describe, test, expect, mock, afterEach } from "bun:test"
-import { startWebhookServer, findSkill } from "../webhook/server.js"
+import { afterEach, describe, expect, mock, test } from "bun:test"
+import type { EmitFn } from "../cron/scheduler.js"
+import { findSkill, startWebhookServer } from "../webhook/server.js"
 
 describe("findSkill", () => {
   test("returns exact match", () => {
@@ -38,7 +39,7 @@ describe("startWebhookServer", () => {
   })
 
   test("returns 405 for GET requests", async () => {
-    const emitFn = mock(async () => {})
+    const emitFn = mock<EmitFn>(async () => {})
     server = startWebhookServer({
       port: 0, // random available port
       host: "127.0.0.1",
@@ -51,7 +52,7 @@ describe("startWebhookServer", () => {
   })
 
   test("returns 200 for POST requests", async () => {
-    const emitFn = mock(async () => {})
+    const emitFn = mock<EmitFn>(async () => {})
     server = startWebhookServer({
       port: 0,
       host: "127.0.0.1",
@@ -69,7 +70,7 @@ describe("startWebhookServer", () => {
   })
 
   test("emits event after flush delay", async () => {
-    const emitFn = mock(async () => {})
+    const emitFn = mock<EmitFn>(async () => {})
     server = startWebhookServer({
       port: 0,
       host: "127.0.0.1",
@@ -95,7 +96,7 @@ describe("startWebhookServer", () => {
   }, 10000)
 
   test("prepends skill when matched", async () => {
-    const emitFn = mock(async () => {})
+    const emitFn = mock<EmitFn>(async () => {})
     server = startWebhookServer({
       port: 0,
       host: "127.0.0.1",
@@ -119,7 +120,7 @@ describe("startWebhookServer", () => {
   }, 10000)
 
   test("batches multiple events within flush window", async () => {
-    const emitFn = mock(async () => {})
+    const emitFn = mock<EmitFn>(async () => {})
     server = startWebhookServer({
       port: 0,
       host: "127.0.0.1",
