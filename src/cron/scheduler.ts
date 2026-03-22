@@ -1,10 +1,7 @@
 import { Cron } from "croner"
 import type { CronDefinition } from "./types.js"
 
-export type EmitFn = (
-  content: string,
-  meta: Record<string, string>,
-) => Promise<void>
+export type EmitFn = (content: string, meta: Record<string, string>) => Promise<void>
 
 export class CronScheduler {
   private jobs = new Map<string, Cron>()
