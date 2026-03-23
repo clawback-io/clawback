@@ -9,6 +9,7 @@ import {
 export interface RemoteClientOptions {
   url: string
   token: string
+  sessionTag?: string
   eventQueue: EventQueue
   onOpen?: () => void
   onClose?: () => void
@@ -38,6 +39,7 @@ export class RemoteClient {
 
   private url: string
   private token: string
+  private sessionTag?: string
   private eventQueue: EventQueue
   private onOpen?: () => void
   private onClose?: () => void
@@ -45,9 +47,15 @@ export class RemoteClient {
   constructor(opts: RemoteClientOptions) {
     this.url = opts.url
     this.token = opts.token
+    this.sessionTag = opts.sessionTag
     this.eventQueue = opts.eventQueue
     this.onOpen = opts.onOpen
     this.onClose = opts.onClose
+  }
+
+  /** Returns the session tag for this connection, if set. */
+  getSessionTag(): string | undefined {
+    return this.sessionTag
   }
 
   connect(): void {
@@ -65,7 +73,11 @@ export class RemoteClient {
 
     this.ws.onopen = () => {
       // Authenticate via first message instead of URL query param
-      this.send({ type: "auth", token: this.token })
+      this.send({
+        type: "auth",
+        token: this.token,
+        ...(this.sessionTag ? { sessionTag: this.sessionTag } : {}),
+      })
     }
 
     this.ws.onmessage = (ev) => {

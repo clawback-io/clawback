@@ -18,9 +18,12 @@ async function main() {
     },
   })
 
+  const sessionTag = process.env.CLAWBACK_SESSION || undefined
+
   const remoteClient = new RemoteClient({
     url: config.remote,
     token: config.connectionToken,
+    sessionTag,
     eventQueue,
   })
 
@@ -38,6 +41,9 @@ async function main() {
   // Connect to remote server
   remoteClient.connect()
   console.error(`[clawback] Connecting to ${config.remote}`)
+  if (sessionTag) {
+    console.error(`[clawback] Session tag: ${sessionTag}`)
+  }
 
   console.error("[clawback] Ready")
 

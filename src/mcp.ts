@@ -82,6 +82,11 @@ export function createMcpServer(opts: McpServerOptions) {
               type: "string",
               description: "Optional human-friendly label for this cron job",
             },
+            session: {
+              type: "string",
+              description:
+                "Target session tag — only the Claude Code instance connected with this tag will receive the cron event. Defaults to current session if set via CLAWBACK_SESSION env var. Omit for broadcast to all sessions.",
+            },
           },
           required: ["schedule", "prompt"],
         },
@@ -174,6 +179,11 @@ export function createMcpServer(opts: McpServerOptions) {
                 'Map of event type patterns to skills/prompts. Keys are event types (e.g., "pull_request.opened", "payment_intent.succeeded"), values are skills (e.g., "/review"). Use "*" as a catch-all. Unmatched events are dropped. Requires eventType to be configured.',
               additionalProperties: { type: "string" },
             },
+            session: {
+              type: "string",
+              description:
+                "Target session tag — only the Claude Code instance connected with this tag will receive webhooks from this source. Defaults to current session if set via CLAWBACK_SESSION env var. Omit for broadcast to all sessions.",
+            },
           },
           required: ["slug"],
         },
@@ -235,6 +245,7 @@ export function createMcpServer(opts: McpServerOptions) {
         const schedule = args?.schedule as string
         const prompt = args?.prompt as string
         const label = args?.label as string | undefined
+        const session = (args?.session as string | undefined) ?? remoteClient.getSessionTag()
 
         // Validate cron expression locally before sending to server
         try {
@@ -257,13 +268,20 @@ export function createMcpServer(opts: McpServerOptions) {
             schedule,
             prompt,
             label,
+            sessionTag: session,
           })
-          const result = data as { id: string; schedule: string; prompt: string; label?: string }
+          const result = data as {
+            id: string
+            schedule: string
+            prompt: string
+            label?: string
+            sessionTag?: string
+          }
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Cron created: ${result.id}\n  Schedule: ${result.schedule}\n  Prompt: ${result.prompt}${result.label ? `\n  Label: ${result.label}` : ""}`,
+                text: `Cron created: ${result.id}\n  Schedule: ${result.schedule}\n  Prompt: ${result.prompt}${result.label ? `\n  Label: ${result.label}` : ""}${result.sessionTag ? `\n  Session: ${result.sessionTag}` : ""}`,
               },
             ],
           }
@@ -322,6 +340,7 @@ export function createMcpServer(opts: McpServerOptions) {
             schedule: string
             prompt: string
             label?: string
+            sessionTag?: string
           }>
           if (crons.length === 0) {
             return {
@@ -329,7 +348,8 @@ export function createMcpServer(opts: McpServerOptions) {
             }
           }
           const lines = crons.map(
-            (c) => `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"} | ${c.prompt}`,
+            (c) =>
+              `- ${c.id} | ${c.schedule} | ${c.label ?? "(no label)"}${c.sessionTag ? ` | session: ${c.sessionTag}` : ""} | ${c.prompt}`,
           )
           return {
             content: [
@@ -387,6 +407,7 @@ export function createMcpServer(opts: McpServerOptions) {
         const eventType = args?.eventType as
           | { header?: string; body?: string; action?: string }
           | undefined
+        const session = (args?.session as string | undefined) ?? remoteClient.getSessionTag()
 
         try {
           const data = await remoteClient.request({
@@ -398,6 +419,7 @@ export function createMcpServer(opts: McpServerOptions) {
             skill,
             routes,
             eventType,
+            sessionTag: session,
           })
           const result = data as {
             id: string
@@ -406,6 +428,7 @@ export function createMcpServer(opts: McpServerOptions) {
             skill?: string
             routes?: Record<string, string>
             eventType?: { header?: string; body?: string; action?: string }
+            sessionTag?: string
           }
           const details = [
             `Webhook source created: ${result.slug}`,
@@ -426,6 +449,9 @@ export function createMcpServer(opts: McpServerOptions) {
             }
           } else if (result.skill) {
             details.push(`  Skill: ${result.skill}`)
+          }
+          if (result.sessionTag) {
+            details.push(`  Session: ${result.sessionTag}`)
           }
           return {
             content: [
@@ -460,6 +486,7 @@ export function createMcpServer(opts: McpServerOptions) {
             type: string
             skill?: string
             routes?: Record<string, string>
+            sessionTag?: string
           }>
           if (sources.length === 0) {
             return {
@@ -473,7 +500,8 @@ export function createMcpServer(opts: McpServerOptions) {
                     .map(([k, v]) => `${k}->${v}`)
                     .join(", ")}}`
                 : s.skill || "(no skill)"
-            return `- ${s.slug} | ${s.type} | ${routing} | ID: ${s.id}`
+            const session = s.sessionTag ? ` | session: ${s.sessionTag}` : ""
+            return `- ${s.slug} | ${s.type} | ${routing}${session} | ID: ${s.id}`
           })
           return {
             content: [
@@ -586,6 +614,7 @@ export function createMcpServer(opts: McpServerOptions) {
             webhookId: string
             webhookBaseUrl: string
             connectedClients: number
+            sessionTag?: string
           }
           return {
             content: [
@@ -596,6 +625,7 @@ export function createMcpServer(opts: McpServerOptions) {
                   `  Profile ID: ${info.profileId}`,
                   `  Webhook base URL: ${info.webhookBaseUrl}`,
                   `  Connected clients: ${info.connectedClients}`,
+                  `  Session: ${info.sessionTag ?? "(none)"}`,
                   ``,
                   `To receive webhooks, configure external services to POST to:`,
                   `  ${info.webhookBaseUrl}/<source-slug>`,

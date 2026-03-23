@@ -39,6 +39,7 @@ export type ServerMessage = z.infer<typeof ServerMessageSchema>
 const ClientAuthSchema = z.object({
   type: z.literal("auth"),
   token: z.string(),
+  sessionTag: z.string().optional(),
 })
 
 const ClientAckSchema = z.object({
@@ -57,6 +58,7 @@ const ClientCronCreateSchema = z.object({
   schedule: z.string(),
   prompt: z.string(),
   label: z.string().optional(),
+  sessionTag: z.string().optional(),
 })
 
 const ClientCronDeleteSchema = z.object({
@@ -85,6 +87,7 @@ const ClientSourceCreateSchema = z.object({
       action: z.string().optional(),
     })
     .optional(),
+  sessionTag: z.string().optional(),
 })
 
 const ClientSourceListSchema = z.object({
