@@ -121,7 +121,7 @@ Clawback Server ←──WebSocket──→ Local Plugin ←──stdio──→
 | `source_create` | Create a webhook source with optional HMAC verification and skill mapping |
 | `source_list` | List webhook sources |
 | `source_delete` | Delete a webhook source |
-| `activity_list` | View recent event processing history |
+| `event_history` | View recent event processing history |
 | `account_info` | Show webhook base URL and connection status |
 
 ### Skill mapping

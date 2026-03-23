@@ -229,9 +229,9 @@ export function createMcpServer(opts: McpServerOptions) {
         },
       },
       {
-        name: "activity_list",
+        name: "event_history",
         description:
-          "View recent activity log — shows what events were processed, summaries, and timing.",
+          "View recent event history — shows what events were processed, summaries, and timing.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -584,11 +584,11 @@ export function createMcpServer(opts: McpServerOptions) {
         }
       }
 
-      case "activity_list": {
+      case "event_history": {
         const limit = args?.limit as number | undefined
         try {
           const data = await remoteClient.request({
-            type: "activity_list",
+            type: "event_history",
             requestId: crypto.randomUUID(),
             limit,
           })

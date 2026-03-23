@@ -101,8 +101,8 @@ const ClientSourceDeleteSchema = z.object({
   sourceId: z.string(),
 })
 
-const ClientActivityListSchema = z.object({
-  type: z.literal("activity_list"),
+const ClientEventHistorySchema = z.object({
+  type: z.literal("event_history"),
   requestId: z.string(),
   limit: z.number().optional(),
 })
@@ -128,7 +128,7 @@ const ClientMessageSchema = z.discriminatedUnion("type", [
   ClientSourceCreateSchema,
   ClientSourceListSchema,
   ClientSourceDeleteSchema,
-  ClientActivityListSchema,
+  ClientEventHistorySchema,
   ClientAccountInfoSchema,
   ClientTokenRotateSchema,
 ])
