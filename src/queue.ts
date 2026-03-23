@@ -11,10 +11,13 @@ export interface EventQueueOptions {
   reminderDelayMs?: number
   /** How long to wait before giving up on ack and moving on (ms). Default: 300000 (5 min) */
   timeoutMs?: number
+  /** Maximum number of events allowed in the queue. Default: 100 */
+  maxQueueSize?: number
 }
 
 const DEFAULT_REMINDER_DELAY_MS = 120_000 // 2 minutes
 const DEFAULT_TIMEOUT_MS = 300_000 // 5 minutes
+const DEFAULT_MAX_QUEUE_SIZE = 100
 
 interface InflightContext {
   meta: Record<string, string>
@@ -33,11 +36,13 @@ export class EventQueue {
   private emitFn: EmitFn
   private reminderDelayMs: number
   private timeoutMs: number
+  private maxQueueSize: number
 
   constructor(opts: EventQueueOptions) {
     this.emitFn = opts.emitFn
     this.reminderDelayMs = opts.reminderDelayMs ?? DEFAULT_REMINDER_DELAY_MS
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    this.maxQueueSize = opts.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE
   }
 
   get pending(): number {
@@ -54,6 +59,12 @@ export class EventQueue {
   }
 
   enqueue(event: QueuedEvent): void {
+    if (this.queue.length >= this.maxQueueSize) {
+      console.error(
+        `[clawback] WARNING: Event queue is full (${this.maxQueueSize} events). Dropping incoming event.`,
+      )
+      return
+    }
     this.queue.push(event)
     console.error(
       `[clawback] Event queued (${this.queue.length} pending, inflight=${this.inflight})`,

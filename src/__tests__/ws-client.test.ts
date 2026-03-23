@@ -12,20 +12,30 @@ function startMockWsServer(handler?: (ws: Bun.ServerWebSocket<unknown>, message:
   wsServer = Bun.serve({
     port: 0,
     fetch(req, server) {
-      const url = new URL(req.url)
-      const token = url.searchParams.get("token")
-      if (token !== "valid-token") {
-        return new Response("Unauthorized", { status: 401 })
-      }
-      if (server.upgrade(req, { data: {} })) return undefined
+      if (server.upgrade(req, { data: { authenticated: false } })) return undefined
       return new Response("Not found", { status: 404 })
     },
     websocket: {
-      open(ws) {
-        serverSockets.add(ws)
+      open(_ws) {
+        // Wait for auth message before adding to active sockets
       },
       message(ws, message) {
         const data = typeof message === "string" ? message : new TextDecoder().decode(message)
+        try {
+          const msg = JSON.parse(data)
+          if (msg.type === "auth") {
+            if (msg.token === "valid-token") {
+              ;(ws.data as Record<string, unknown>).authenticated = true
+              ws.send(JSON.stringify({ type: "auth_ok" }))
+              serverSockets.add(ws)
+            } else {
+              ws.close(4001, "Invalid token")
+            }
+            return
+          }
+        } catch {
+          // Not JSON, pass through
+        }
         handler?.(ws, data)
       },
       close(ws) {
