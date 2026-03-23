@@ -30,24 +30,13 @@ bun run db:seed             # Create dev user + connection token
 bun run dev                 # Start server on port 3000
 ```
 
-### 2. Configure the plugin
-
-Create `~/.clawback/config.json` with the token from the seed output:
-
-```json
-{
-  "remote": "ws://localhost:3000/ws",
-  "connectionToken": "cbt_your_token_here"
-}
-```
-
-### 3. Register and launch
+### 2. Install the plugin
 
 ```bash
 cd clawback
 bun install
 
-# Register as an MCP server
+# Register the MCP server
 claude mcp add -s user clawback -- bun run $(pwd)/src/index.ts
 
 # Launch Claude Code with the channel
@@ -55,6 +44,23 @@ claude --dangerously-load-development-channels server:clawback
 ```
 
 > **Note**: Do not use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
+
+### 3. Configure
+
+In your Claude Code session, run:
+
+```
+/clawback:configure <your_connection_token>
+```
+
+Or manually create `~/.claude/channels/clawback/config.json`:
+
+```json
+{
+  "remote": "ws://localhost:3000/ws",
+  "connectionToken": "cbt_your_token_here"
+}
+```
 
 ### 4. Test it
 
@@ -70,7 +76,7 @@ Claude will receive the event and act on it.
 
 ## Configuration
 
-`~/.clawback/config.json`:
+`~/.claude/channels/clawback/config.json`:
 
 ```json
 {
@@ -83,7 +89,7 @@ Claude will receive the event and act on it.
 |-------|----------|-------------|
 | `remote` | Yes | WebSocket URL of the Clawback server (`ws://` for local, `wss://` for production) |
 | `connectionToken` | Yes | Connection token from the server (starts with `cbt_`) |
-| `dataDir` | No | Local data directory (default: `~/.clawback`) |
+| `dataDir` | No | Local data directory (default: `~/.claude/channels/clawback`) |
 
 ## Features
 
@@ -101,7 +107,7 @@ src/
   index.ts              Entry point — config, WS client, MCP server, shutdown
   mcp.ts                MCP server with channel capability + cron/ack tools
   queue.ts              EventQueue — one-at-a-time dispatch with reminder + timeout
-  config.ts             Loads ~/.clawback/config.json
+  config.ts             Loads ~/.claude/channels/clawback/config.json
   ws/
     client.ts           WebSocket client with auto-reconnect + heartbeat
     protocol.ts         Shared message types (ServerMessage, ClientMessage)
