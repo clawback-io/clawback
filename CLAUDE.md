@@ -107,6 +107,35 @@ source_create slug="github" type="github" secret="whsec_..." skill="/review"
 
 This means any POST to `/webhooks/<id>/github` will be delivered to Claude as `/review` with the webhook payload as context.
 
+## Session routing
+
+When running multiple Claude Code instances, you can route events to specific sessions using session tags.
+
+### Setup
+
+Set the `CLAWBACK_SESSION` env var when starting Claude Code:
+
+```bash
+CLAWBACK_SESSION=backend claude --dangerously-load-development-channels server:clawback
+CLAWBACK_SESSION=frontend claude --dangerously-load-development-channels server:clawback
+```
+
+### Routing rules
+
+- **Tagged source/cron** → events deliver only to the session matching that tag. If the session isn't connected, events queue until it reconnects.
+- **Untagged source/cron** → events deliver only to untagged sessions (broadcast among them).
+- **Tagged session** → only receives events targeted to its tag.
+- **Untagged session** → only receives untagged events.
+
+### Creating targeted sources and crons
+
+When `CLAWBACK_SESSION` is set, `source_create` and `cron_create` default to targeting the current session. Override with `session` param or omit for broadcast:
+
+```
+source_create slug="github" type="github" secret="..." session="backend"
+cron_create schedule="0 9 * * *" prompt="/catchup" session="frontend"
+```
+
 ## Key constraints
 
 - All `meta` values in channel notifications must be `Record<string, string>` — no booleans, numbers, or null
