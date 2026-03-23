@@ -74,9 +74,11 @@ const ClientSourceCreateSchema = z.object({
   type: z.literal("source_create"),
   requestId: z.string(),
   slug: z.string(),
+  provider: z.string().optional(),
   verifierType: z.string().optional(),
   secret: z.string().optional(),
   skill: z.string().optional(),
+  routes: z.record(z.string(), z.string()).optional(),
 })
 
 const ClientSourceListSchema = z.object({

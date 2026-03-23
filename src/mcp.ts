@@ -134,6 +134,11 @@ export function createMcpServer(opts: McpServerOptions) {
               type: "string",
               description: 'URL slug for the webhook endpoint (e.g., "github", "sentry", "deploy")',
             },
+            provider: {
+              type: "string",
+              description:
+                'Webhook provider for event type extraction: "github", "stripe", "linear", "slack", "shopify", or "generic". Determines how the event type is parsed from headers/body. Default: "generic"',
+            },
             type: {
               type: "string",
               description:
@@ -146,7 +151,13 @@ export function createMcpServer(opts: McpServerOptions) {
             skill: {
               type: "string",
               description:
-                'Optional skill or prompt to prepend when this webhook fires (e.g., "/review", "Investigate this error")',
+                "Deprecated \u2014 use routes instead. Optional skill or prompt to prepend when this webhook fires.",
+            },
+            routes: {
+              type: "object",
+              description:
+                'Map of event type patterns to skills/prompts. Keys are event types (e.g., "pull_request.opened", "payment_intent.succeeded"), values are skills (e.g., "/review"). Use "*" as a catch-all. Unmatched events are dropped.',
+              additionalProperties: { type: "string" },
             },
           },
           required: ["slug"],
@@ -354,25 +365,50 @@ export function createMcpServer(opts: McpServerOptions) {
 
       case "source_create": {
         const slug = args?.slug as string
+        const provider = (args?.provider as string | undefined) ?? "generic"
         const type = (args?.type as string | undefined) ?? "generic"
         const secret = args?.secret as string | undefined
         const skill = args?.skill as string | undefined
+        const routes = args?.routes as Record<string, string> | undefined
 
         try {
           const data = await remoteClient.request({
             type: "source_create",
             requestId: crypto.randomUUID(),
             slug,
+            provider,
             verifierType: type,
             secret,
             skill,
+            routes,
           })
-          const result = data as { id: string; slug: string; type: string; skill: string }
+          const result = data as {
+            id: string
+            slug: string
+            provider?: string
+            type: string
+            skill?: string
+            routes?: Record<string, string>
+          }
+          const details = [
+            `Webhook source created: ${result.slug}`,
+            `  ID: ${result.id}`,
+            `  Provider: ${result.provider ?? "generic"}`,
+            `  Verification: ${result.type}`,
+          ]
+          if (result.routes && Object.keys(result.routes).length > 0) {
+            details.push("  Routes:")
+            for (const [pattern, target] of Object.entries(result.routes)) {
+              details.push(`    ${pattern} -> ${target}`)
+            }
+          } else if (result.skill) {
+            details.push(`  Skill: ${result.skill}`)
+          }
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Webhook source created: ${result.slug}\n  ID: ${result.id}\n  Verification: ${result.type}${result.skill ? `\n  Skill: ${result.skill}` : ""}`,
+                text: details.join("\n"),
               },
             ],
           }
@@ -395,15 +431,27 @@ export function createMcpServer(opts: McpServerOptions) {
             type: "source_list",
             requestId: crypto.randomUUID(),
           })
-          const sources = data as Array<{ id: string; slug: string; type: string; skill: string }>
+          const sources = data as Array<{
+            id: string
+            slug: string
+            type: string
+            skill?: string
+            routes?: Record<string, string>
+          }>
           if (sources.length === 0) {
             return {
               content: [{ type: "text" as const, text: "No webhook sources configured." }],
             }
           }
-          const lines = sources.map(
-            (s) => `- ${s.slug} | ${s.type} | ${s.skill || "(no skill)"} | ID: ${s.id}`,
-          )
+          const lines = sources.map((s) => {
+            const routing =
+              s.routes && Object.keys(s.routes).length > 0
+                ? `routes: {${Object.entries(s.routes)
+                    .map(([k, v]) => `${k}->${v}`)
+                    .join(", ")}}`
+                : s.skill || "(no skill)"
+            return `- ${s.slug} | ${s.type} | ${routing} | ID: ${s.id}`
+          })
           return {
             content: [
               {
