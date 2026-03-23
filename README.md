@@ -38,22 +38,11 @@ bun install
 
 # Register the MCP server
 claude mcp add -s user clawback -- bun run $(pwd)/src/index.ts
-
-# Launch Claude Code with the channel
-claude --dangerously-load-development-channels server:clawback
 ```
-
-> **Note**: Do not use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
 
 ### 3. Configure
 
-In your Claude Code session, run:
-
-```
-/clawback:configure <your_connection_token>
-```
-
-Or manually create `~/.claude/channels/clawback/config.json`:
+Create `~/.claude/channels/clawback/config.json` with the token from the seed output:
 
 ```json
 {
@@ -62,7 +51,15 @@ Or manually create `~/.claude/channels/clawback/config.json`:
 }
 ```
 
-### 4. Test it
+### 4. Launch
+
+```bash
+claude --dangerously-load-development-channels server:clawback
+```
+
+> **Note**: Do not use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
+
+### 5. Test it
 
 Send a webhook to the server (use the webhook ID from the seed output):
 
