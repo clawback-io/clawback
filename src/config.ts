@@ -3,7 +3,8 @@ import { homedir, platform } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
 
-const CHANNELS_DIR = join(homedir(), ".claude", "channels", "clawback")
+const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude")
+const CHANNELS_DIR = join(CLAUDE_DIR, "channels", "clawback")
 
 const ConfigSchema = z.object({
   dataDir: z.string().default(CHANNELS_DIR),
