@@ -52,8 +52,9 @@ The plugin will connect automatically on startup.
 
 ```json
 {
-  "remote": "wss://your-server.fly.dev/ws",
-  "connectionToken": "cbt_your_token_here"
+  "remote": "wss://getclawback.io/ws",
+  "connectionToken": "cbt_your_token_here",
+  "notifications": true
 }
 ```
 
@@ -61,6 +62,7 @@ The plugin will connect automatically on startup.
 |-------|----------|-------------|
 | `remote` | Yes | WebSocket URL of the Clawback server |
 | `connectionToken` | Yes | Connection token from the server (starts with `cbt_`) |
+| `notifications` | No | Enable desktop notifications on event completion (default: `false`) |
 | `dataDir` | No | Local data directory (default: `~/.claude/channels/clawback`) |
 
 ### Environment variables
