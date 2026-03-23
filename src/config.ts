@@ -40,8 +40,12 @@ const ConfigSchema = z.object({
 
 export type ClawbackConfig = z.infer<typeof ConfigSchema>
 
+export function getConfigPath(): string {
+  return process.env.CLAWBACK_CONFIG ?? join(CHANNELS_DIR, "config.json")
+}
+
 export function loadConfig(): ClawbackConfig {
-  const configPath = process.env.CLAWBACK_CONFIG ?? join(CHANNELS_DIR, "config.json")
+  const configPath = getConfigPath()
 
   if (!existsSync(configPath)) {
     console.error(`[clawback] Config not found at ${configPath}`)

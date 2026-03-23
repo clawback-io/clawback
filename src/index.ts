@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { loadConfig } from "./config.js"
+import { getConfigPath, loadConfig } from "./config.js"
 import { createMcpServer } from "./mcp.js"
 import { EventQueue } from "./queue.js"
 import { RemoteClient } from "./ws/client.js"
@@ -31,6 +31,7 @@ async function main() {
     eventQueue,
     remoteClient,
     notifications: config.notifications,
+    configPath: getConfigPath(),
   })
   emitChannelEvent = emitFn
 

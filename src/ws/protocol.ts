@@ -112,6 +112,12 @@ const ClientAccountInfoSchema = z.object({
   requestId: z.string(),
 })
 
+const ClientTokenRotateSchema = z.object({
+  type: z.literal("token_rotate"),
+  requestId: z.string(),
+  label: z.string().optional(),
+})
+
 const ClientMessageSchema = z.discriminatedUnion("type", [
   ClientAuthSchema,
   ClientAckSchema,
@@ -124,6 +130,7 @@ const ClientMessageSchema = z.discriminatedUnion("type", [
   ClientSourceDeleteSchema,
   ClientActivityListSchema,
   ClientAccountInfoSchema,
+  ClientTokenRotateSchema,
 ])
 
 /** Messages sent from the local plugin to the remote server */

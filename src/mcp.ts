@@ -1,4 +1,5 @@
 import { exec } from "node:child_process"
+import { readFileSync, writeFileSync } from "node:fs"
 import { platform } from "node:os"
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js"
@@ -10,6 +11,7 @@ export interface McpServerOptions {
   eventQueue: EventQueue
   remoteClient: RemoteClient
   notifications?: boolean
+  configPath?: string
 }
 
 /** Error messages that are safe to forward to the client as-is. */
@@ -41,6 +43,7 @@ function sendNotification(title: string, body: string): void {
 export function createMcpServer(opts: McpServerOptions) {
   const { eventQueue, remoteClient } = opts
   const notifications = opts.notifications ?? false
+  const configPath = opts.configPath
 
   const server = new Server(
     { name: "clawback", version: "0.2.0" },
@@ -243,6 +246,15 @@ export function createMcpServer(opts: McpServerOptions) {
         name: "account_info",
         description:
           "Show account info including the webhook base URL for configuring external services.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+        },
+      },
+      {
+        name: "token_rotate",
+        description:
+          "Rotate the connection token. Creates a new token, revokes the old one, and updates the local config file. The connection continues using the new token.",
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -657,6 +669,53 @@ export function createMcpServer(opts: McpServerOptions) {
               {
                 type: "text" as const,
                 text: `Failed to get account info: ${safeErrorMessage(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "token_rotate": {
+        try {
+          const data = await remoteClient.request({
+            type: "token_rotate",
+            requestId: crypto.randomUUID(),
+          })
+          const result = data as { token: string; id: string }
+
+          // Update config file with new token
+          if (configPath) {
+            try {
+              const raw = JSON.parse(readFileSync(configPath, "utf-8"))
+              raw.connectionToken = result.token
+              writeFileSync(configPath, `${JSON.stringify(raw, null, 2)}\n`, { mode: 0o600 })
+            } catch (writeErr) {
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: `Token rotated on server but failed to update config file: ${writeErr}. New token: ${result.token}`,
+                  },
+                ],
+              }
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Token rotated successfully. Config file updated.${!configPath ? ` New token: ${result.token}` : ""}`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to rotate token: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
