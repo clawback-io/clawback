@@ -134,15 +134,30 @@ export function createMcpServer(opts: McpServerOptions) {
               type: "string",
               description: 'URL slug for the webhook endpoint (e.g., "github", "sentry", "deploy")',
             },
-            provider: {
-              type: "string",
+            eventType: {
+              type: "object",
               description:
-                'Webhook provider for event type extraction: "github", "stripe", "linear", "slack", "shopify", or "generic". Determines how the event type is parsed from headers/body. Default: "generic"',
+                'Tells the server how to extract the event type from incoming webhooks. Use "header" to read from an HTTP header, "body" for a dot-notation JSON path, and "action" for a sub-action to append. Examples: GitHub: {header: "X-GitHub-Event", action: "action"}, Stripe: {body: "type"}, Shopify: {header: "X-Shopify-Topic"}',
+              properties: {
+                header: {
+                  type: "string",
+                  description: "HTTP header name to read the event type from",
+                },
+                body: {
+                  type: "string",
+                  description: 'Dot-notation path into the JSON body (e.g., "type", "event.type")',
+                },
+                action: {
+                  type: "string",
+                  description:
+                    'Dot-notation body path for a sub-action, appended with "." (e.g., "action")',
+                },
+              },
             },
             type: {
               type: "string",
               description:
-                'Verification type: "github" (X-Hub-Signature-256), "stripe" (Stripe-Signature), "generic" (HMAC-SHA256), or "none" (no verification). Default: "generic"',
+                'Signature verification type: "github" (X-Hub-Signature-256), "stripe" (Stripe-Signature), "generic" (HMAC-SHA256), or "none" (no verification). Default: "generic"',
             },
             secret: {
               type: "string",
@@ -151,12 +166,12 @@ export function createMcpServer(opts: McpServerOptions) {
             skill: {
               type: "string",
               description:
-                "Deprecated \u2014 use routes instead. Optional skill or prompt to prepend when this webhook fires.",
+                "Deprecated — use routes instead. Optional skill or prompt to prepend when this webhook fires.",
             },
             routes: {
               type: "object",
               description:
-                'Map of event type patterns to skills/prompts. Keys are event types (e.g., "pull_request.opened", "payment_intent.succeeded"), values are skills (e.g., "/review"). Use "*" as a catch-all. Unmatched events are dropped.',
+                'Map of event type patterns to skills/prompts. Keys are event types (e.g., "pull_request.opened", "payment_intent.succeeded"), values are skills (e.g., "/review"). Use "*" as a catch-all. Unmatched events are dropped. Requires eventType to be configured.',
               additionalProperties: { type: "string" },
             },
           },
@@ -365,37 +380,45 @@ export function createMcpServer(opts: McpServerOptions) {
 
       case "source_create": {
         const slug = args?.slug as string
-        const provider = (args?.provider as string | undefined) ?? "generic"
         const type = (args?.type as string | undefined) ?? "generic"
         const secret = args?.secret as string | undefined
         const skill = args?.skill as string | undefined
         const routes = args?.routes as Record<string, string> | undefined
+        const eventType = args?.eventType as
+          | { header?: string; body?: string; action?: string }
+          | undefined
 
         try {
           const data = await remoteClient.request({
             type: "source_create",
             requestId: crypto.randomUUID(),
             slug,
-            provider,
             verifierType: type,
             secret,
             skill,
             routes,
+            eventType,
           })
           const result = data as {
             id: string
             slug: string
-            provider?: string
             type: string
             skill?: string
             routes?: Record<string, string>
+            eventType?: { header?: string; body?: string; action?: string }
           }
           const details = [
             `Webhook source created: ${result.slug}`,
             `  ID: ${result.id}`,
-            `  Provider: ${result.provider ?? "generic"}`,
             `  Verification: ${result.type}`,
           ]
+          if (result.eventType && (result.eventType.header || result.eventType.body)) {
+            const parts: string[] = []
+            if (result.eventType.header) parts.push(`header: ${result.eventType.header}`)
+            if (result.eventType.body) parts.push(`body: ${result.eventType.body}`)
+            if (result.eventType.action) parts.push(`action: ${result.eventType.action}`)
+            details.push(`  Event type: {${parts.join(", ")}}`)
+          }
           if (result.routes && Object.keys(result.routes).length > 0) {
             details.push("  Routes:")
             for (const [pattern, target] of Object.entries(result.routes)) {
