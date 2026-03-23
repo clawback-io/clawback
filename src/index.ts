@@ -30,6 +30,7 @@ async function main() {
   const { server, emitChannelEvent: emitFn } = createMcpServer({
     eventQueue,
     remoteClient,
+    notifications: config.notifications,
   })
   emitChannelEvent = emitFn
 

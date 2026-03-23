@@ -1,3 +1,5 @@
+import { exec } from "node:child_process"
+import { platform } from "node:os"
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { Cron } from "croner"
@@ -7,6 +9,7 @@ import type { RemoteClient } from "./ws/client.js"
 export interface McpServerOptions {
   eventQueue: EventQueue
   remoteClient: RemoteClient
+  notifications?: boolean
 }
 
 /** Error messages that are safe to forward to the client as-is. */
@@ -25,8 +28,19 @@ function safeErrorMessage(err: unknown): string {
   return "Request failed"
 }
 
+function sendNotification(title: string, body: string): void {
+  const escaped = body.replace(/"/g, '\\"').slice(0, 200)
+  const os = platform()
+  if (os === "linux") {
+    exec(`notify-send "${title}" "${escaped}"`)
+  } else if (os === "darwin") {
+    exec(`osascript -e 'display notification "${escaped}" with title "${title}"'`)
+  }
+}
+
 export function createMcpServer(opts: McpServerOptions) {
   const { eventQueue, remoteClient } = opts
+  const notifications = opts.notifications ?? false
 
   const server = new Server(
     { name: "clawback", version: "0.2.0" },
@@ -381,6 +395,10 @@ export function createMcpServer(opts: McpServerOptions) {
           const remoteEventId = eventQueue.inflightMeta?.remoteEventId
           if (remoteEventId) {
             remoteClient.sendAck(remoteEventId, summary)
+          }
+          if (notifications && summary) {
+            const source = eventQueue.inflightMeta?.source ?? "event"
+            sendNotification(`Clawback (${source})`, summary)
           }
         }
 
