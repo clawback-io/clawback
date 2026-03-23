@@ -123,7 +123,9 @@ Clawback Server ←──WebSocket──→ Local Plugin ←──stdio──→
 | `source_delete` | Delete a webhook source |
 | `event_history` | View recent event processing history |
 | `account_info` | Show webhook base URL and connection status |
-| `token_rotate` | Rotate connection token and update local config |
+| `token_create` | Create an additional connection token for another machine |
+| `token_list` | List all tokens (ID, label, last seen) without revealing values |
+| `token_rotate` | Rotate current token — creates new, revokes old, updates config |
 
 ### Skill mapping
 
