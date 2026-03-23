@@ -1,0 +1,12 @@
+{
+  "name": "clawback",
+  "description": "Clawback channel for Claude Code — webhook delivery and cron scheduling via a hosted server. Configure with /clawback:configure.",
+  "version": "0.2.0",
+  "keywords": [
+    "clawback",
+    "webhooks",
+    "cron",
+    "channel",
+    "mcp"
+  ]
+}

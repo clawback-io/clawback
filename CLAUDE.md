@@ -16,20 +16,24 @@ The server (separate repo: [`clawback-server`](https://github.com/clawback-io/cl
 
 ## Setup
 
-### 1. Configure the connection
+### As a plugin (recommended)
 
-Create `~/.clawback/config.json`:
+1. Install the plugin (once published), or for development:
+   ```bash
+   claude --dangerously-load-development-channels server:clawback
+   ```
 
-```json
-{
-  "remote": "wss://your-server.fly.dev/ws",
-  "connectionToken": "cbt_your_token_here"
-}
-```
+2. Configure your connection token:
+   ```
+   /clawback:configure <your_connection_token>
+   ```
 
 Get a connection token by authenticating with the hosted server (OAuth flow or dev seed).
 
-For local development with a local server:
+### Manual setup (development)
+
+For local development with a local server, create `~/.claude/channels/clawback/config.json`:
+
 ```json
 {
   "remote": "ws://localhost:3000/ws",
@@ -37,23 +41,11 @@ For local development with a local server:
 }
 ```
 
-### 2. Register the MCP server
-
-```bash
-claude mcp add -s user clawback -- bun run /path/to/clawback/src/index.ts
-```
-
-### 3. Launch Claude Code
-
-```bash
-claude --dangerously-load-development-channels server:clawback
-```
-
 **Important**: Do NOT use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
 
 ## Config
 
-`~/.clawback/config.json` (required):
+`~/.claude/channels/clawback/config.json` (required):
 
 ```json
 {
@@ -66,7 +58,7 @@ claude --dangerously-load-development-channels server:clawback
 |-------|----------|-------------|
 | `remote` | Yes | WebSocket URL of the Clawback server |
 | `connectionToken` | Yes | Connection token from the server (starts with `cbt_`) |
-| `dataDir` | No | Local data directory (default: `~/.clawback`) |
+| `dataDir` | No | Local data directory (default: `~/.claude/channels/clawback`) |
 
 ## Architecture
 
@@ -76,10 +68,18 @@ Clawback Server ←──WebSocket──→ Local Plugin ←──stdio──→
  activity, accounts)              dispatch, ack)            calls tools)
 ```
 
+### Plugin structure
+
+- `.claude-plugin/plugin.json` — Plugin manifest (name, version, keywords)
+- `.mcp.json` — MCP server spawn config (used when installed as a plugin)
+- `skills/configure/SKILL.md` — `/clawback:configure` skill for token setup
+
+### Source
+
 - `src/index.ts` — Entry point: loads config, creates WS client + MCP server, wires shutdown
 - `src/mcp.ts` — MCP server with channel capability, forwards cron tools over WS, sends acks
 - `src/queue.ts` — EventQueue: one-at-a-time dispatch with ack, reminder (2min), timeout (5min)
-- `src/config.ts` — Loads config from `~/.clawback/config.json`
+- `src/config.ts` — Loads config from `~/.claude/channels/clawback/config.json`
 - `src/ws/client.ts` — WebSocket client with auto-reconnect, heartbeat, offline ack queue
 - `src/ws/protocol.ts` — Shared message types (ServerMessage, ClientMessage)
 

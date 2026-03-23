@@ -3,8 +3,10 @@ import { homedir, platform } from "node:os"
 import { join } from "node:path"
 import { z } from "zod"
 
+const CHANNELS_DIR = join(homedir(), ".claude", "channels", "clawback")
+
 const ConfigSchema = z.object({
-  dataDir: z.string().default(join(homedir(), ".clawback")),
+  dataDir: z.string().default(CHANNELS_DIR),
   remote: z
     .string()
     .url()
@@ -37,11 +39,13 @@ const ConfigSchema = z.object({
 export type ClawbackConfig = z.infer<typeof ConfigSchema>
 
 export function loadConfig(): ClawbackConfig {
-  const configPath = process.env.CLAWBACK_CONFIG ?? join(homedir(), ".clawback", "config.json")
+  const configPath = process.env.CLAWBACK_CONFIG ?? join(CHANNELS_DIR, "config.json")
 
   if (!existsSync(configPath)) {
     console.error(`[clawback] Config not found at ${configPath}`)
-    console.error("[clawback] Create ~/.clawback/config.json with remote and connectionToken")
+    console.error(
+      "[clawback] Run /clawback:configure <token> or create ~/.claude/channels/clawback/config.json",
+    )
     process.exit(1)
   }
 
