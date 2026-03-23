@@ -16,32 +16,35 @@ The server (separate repo: [`clawback-server`](https://github.com/clawback-io/cl
 
 ## Setup
 
-### As a plugin (recommended)
+### 1. Clone and install
 
-1. Install the plugin (once published), or for development:
-   ```bash
-   claude --dangerously-load-development-channels server:clawback
-   ```
-
-2. Configure your connection token:
-   ```
-   /clawback:configure <your_connection_token>
-   ```
-
-Get a connection token by authenticating with the hosted server (OAuth flow or dev seed).
-
-### Manual setup (development)
-
-For local development with a local server, create `~/.claude/channels/clawback/config.json`:
-
-```json
-{
-  "remote": "ws://localhost:3000/ws",
-  "connectionToken": "cbt_your_dev_token"
-}
+```bash
+git clone https://github.com/clawback-io/clawback.git ~/.config/claude/channels/clawback-plugin
+cd ~/.config/claude/channels/clawback-plugin
+bun install
 ```
 
-**Important**: Do NOT use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
+### 2. Add the MCP server to your project
+
+From whichever project directory you want to use Clawback in:
+
+```bash
+claude mcp add -s project clawback -- bun run --cwd ~/.config/claude/channels/clawback-plugin --shell=bun --silent start
+```
+
+Or add it globally (all projects):
+
+```bash
+claude mcp add clawback -- bun run --cwd ~/.config/claude/channels/clawback-plugin --shell=bun --silent start
+```
+
+### 3. Authenticate
+
+Visit [getclawback.io/auth/cli](https://getclawback.io/auth/cli) to log in with GitHub. You'll get a shell command to save your connection config. Paste it in your terminal.
+
+### 4. Restart Claude Code
+
+The plugin will connect automatically on startup.
 
 ## Config
 
