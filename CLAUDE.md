@@ -60,6 +60,28 @@ For local development with a local server, create `~/.claude/channels/clawback/c
 | `connectionToken` | Yes | Connection token from the server (starts with `cbt_`) |
 | `dataDir` | No | Local data directory (default: `~/.claude/channels/clawback`) |
 
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLAWBACK_CONFIG` | Override config file path (default: `$CLAUDE_CONFIG_DIR/channels/clawback/config.json`) |
+| `CLAWBACK_SESSION` | Set session tag for multi-instance routing (see [Session routing](#session-routing)) |
+
+### Multiple configs
+
+Keep separate config files for production and local development:
+
+```
+~/.config/claude/channels/clawback/config.json        # production (default)
+~/.config/claude/channels/clawback/config.local.json   # local dev
+```
+
+Switch with the `CLAWBACK_CONFIG` env var:
+
+```bash
+CLAWBACK_CONFIG=~/.config/claude/channels/clawback/config.local.json claude --dangerously-load-development-channels server:clawback
+```
+
 ## Architecture
 
 ```
