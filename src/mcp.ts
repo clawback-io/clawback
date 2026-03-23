@@ -260,6 +260,29 @@ export function createMcpServer(opts: McpServerOptions) {
           properties: {},
         },
       },
+      {
+        name: "token_create",
+        description:
+          "Create an additional connection token for use on another machine or session. Does not affect the current connection.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            label: {
+              type: "string",
+              description: 'Label to identify this token (e.g., "work laptop", "CI server")',
+            },
+          },
+        },
+      },
+      {
+        name: "token_list",
+        description:
+          "List all connection tokens for your account. Shows labels, last seen times, and which token is currently in use. Does not reveal token values.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+        },
+      },
     ],
   }))
 
@@ -716,6 +739,86 @@ export function createMcpServer(opts: McpServerOptions) {
               {
                 type: "text" as const,
                 text: `Failed to rotate token: ${safeErrorMessage(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "token_create": {
+        const label = args?.label as string | undefined
+        try {
+          const data = await remoteClient.request({
+            type: "token_create",
+            requestId: crypto.randomUUID(),
+            label,
+          })
+          const result = data as { token: string; id: string; label: string }
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: [
+                  `Token created:`,
+                  `  Token: ${result.token}`,
+                  `  ID: ${result.id}`,
+                  `  Label: ${result.label}`,
+                  ``,
+                  `Save this token — it won't be shown again.`,
+                ].join("\n"),
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to create token: ${safeErrorMessage(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "token_list": {
+        try {
+          const data = await remoteClient.request({
+            type: "token_list",
+            requestId: crypto.randomUUID(),
+          })
+          const tokens = data as Array<{
+            id: string
+            label: string | null
+            lastSeen: string | null
+            createdAt: string
+            current: boolean
+          }>
+          if (tokens.length === 0) {
+            return {
+              content: [{ type: "text" as const, text: "No tokens found." }],
+            }
+          }
+          const lines = tokens.map(
+            (t) =>
+              `- ${t.id} | ${t.label ?? "(no label)"} | last seen: ${t.lastSeen ?? "never"} | created: ${t.createdAt}${t.current ? " (current)" : ""}`,
+          )
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Connection tokens (${tokens.length}):\n${lines.join("\n")}`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to list tokens: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
