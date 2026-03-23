@@ -48,7 +48,7 @@ The plugin will connect automatically on startup.
 
 ## Config
 
-`~/.claude/channels/clawback/config.json` (required):
+`$CLAUDE_CONFIG_DIR/channels/clawback/config.json` (required):
 
 ```json
 {
@@ -123,6 +123,7 @@ Clawback Server ←──WebSocket──→ Local Plugin ←──stdio──→
 | `source_delete` | Delete a webhook source |
 | `event_history` | View recent event processing history |
 | `account_info` | Show webhook base URL and connection status |
+| `token_rotate` | Rotate connection token and update local config |
 
 ### Skill mapping
 
@@ -143,8 +144,8 @@ When running multiple Claude Code instances, you can route events to specific se
 Set the `CLAWBACK_SESSION` env var when starting Claude Code:
 
 ```bash
-CLAWBACK_SESSION=backend claude --dangerously-load-development-channels server:clawback
-CLAWBACK_SESSION=frontend claude --dangerously-load-development-channels server:clawback
+CLAWBACK_SESSION=deploys claude --dangerously-load-development-channels server:clawback
+CLAWBACK_SESSION=oncall claude --dangerously-load-development-channels server:clawback
 ```
 
 ### Routing rules
@@ -159,8 +160,8 @@ CLAWBACK_SESSION=frontend claude --dangerously-load-development-channels server:
 When `CLAWBACK_SESSION` is set, `source_create` and `cron_create` default to targeting the current session. Override with `session` param or omit for broadcast:
 
 ```
-source_create slug="github" type="github" secret="..." session="backend"
-cron_create schedule="0 9 * * *" prompt="/catchup" session="frontend"
+source_create slug="github" type="github" secret="..." session="deploys"
+cron_create schedule="0 9 * * *" prompt="/catchup" session="oncall"
 ```
 
 ## Key constraints
