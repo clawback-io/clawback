@@ -64,4 +64,52 @@ describe("loadConfig", () => {
     const config = loadConfig()
     expect(config.dataDir).toBe("/tmp/custom-clawback")
   })
+
+  test("sessionMessaging defaults to true when not specified", () => {
+    const configPath = join(tmpDir, "config.json")
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        remote: "wss://clawback.fly.dev/ws",
+        connectionToken: "cbt_abc123",
+      }),
+    )
+    process.env.CLAWBACK_CONFIG = configPath
+
+    const config = loadConfig()
+    expect(config.sessionMessaging).toBe(true)
+  })
+
+  test("notifications defaults to false when not specified", () => {
+    const configPath = join(tmpDir, "config.json")
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        remote: "wss://clawback.fly.dev/ws",
+        connectionToken: "cbt_abc123",
+      }),
+    )
+    process.env.CLAWBACK_CONFIG = configPath
+
+    const config = loadConfig()
+    expect(config.notifications).toBe(false)
+  })
+
+  test("sessionMessaging and notifications can be explicitly set", () => {
+    const configPath = join(tmpDir, "config.json")
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        remote: "wss://clawback.fly.dev/ws",
+        connectionToken: "cbt_abc123",
+        sessionMessaging: false,
+        notifications: true,
+      }),
+    )
+    process.env.CLAWBACK_CONFIG = configPath
+
+    const config = loadConfig()
+    expect(config.sessionMessaging).toBe(false)
+    expect(config.notifications).toBe(true)
+  })
 })
