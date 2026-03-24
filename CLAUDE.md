@@ -12,7 +12,7 @@ This plugin is a thin WebSocket client that bridges a remote Clawback server to 
 - **Auto-reconnects** with exponential backoff if the connection drops
 - **Queues acks offline** and flushes them when reconnected
 
-The server (separate repo: [`clawback-server`](https://github.com/clawback-io/clawback-server)) handles webhook ingestion, HMAC verification, cron scheduling, multi-account isolation, and activity logging.
+The server ([getclawback.io](https://getclawback.io)) handles webhook ingestion, HMAC verification, cron scheduling, multi-account isolation, and activity logging.
 
 ## Setup
 

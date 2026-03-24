@@ -1,13 +1,13 @@
 # Clawback
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) channel plugin that connects to a hosted [Clawback server](https://github.com/clawback-io/clawback-server) for persistent cron scheduling and webhook delivery.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) channel plugin that connects to the hosted [Clawback server](https://getclawback.io) for persistent cron scheduling and webhook delivery.
 
 ## How it works
 
 Clawback has two parts:
 
 1. **This plugin** — a thin WebSocket client that runs as a Claude Code MCP server. It receives events from the remote server and dispatches them as channel notifications to Claude.
-2. **The server** ([`clawback-server`](https://github.com/clawback-io/clawback-server)) — a hosted service that receives webhooks, runs crons, manages accounts, and pushes events to connected plugins via WebSocket.
+2. **The server** ([getclawback.io](https://getclawback.io)) — a hosted service that receives webhooks, runs crons, manages accounts, and pushes events to connected plugins via WebSocket.
 
 ```
 External Services ──POST──▶ Clawback Server ◀──WebSocket──▶ This Plugin ──▶ Claude Code
@@ -18,17 +18,9 @@ Events are dispatched one at a time. Claude processes each event and calls `even
 
 ## Quick Start
 
-### 1. Set up the server
+### 1. Authenticate
 
-See the [clawback-server README](https://github.com/clawback-io/clawback-server) for server setup. For local development:
-
-```bash
-cd clawback-server
-docker compose up -d        # Start Postgres
-bun run db:push             # Create tables
-bun run db:seed             # Create dev user + connection token
-bun run dev                 # Start server on port 3000
-```
+Visit [getclawback.io/auth/cli](https://getclawback.io/auth/cli) to sign in with GitHub. You'll get a shell command to save your connection config — paste it in your terminal.
 
 ### 2. Install the plugin
 
@@ -40,36 +32,11 @@ bun install
 claude mcp add -s user clawback -- bun run $(pwd)/src/index.ts
 ```
 
-### 3. Configure
+### 3. Launch
 
-Create `~/.claude/channels/clawback/config.json` with the token from the seed output:
+Restart Claude Code. The plugin connects automatically on startup.
 
-```json
-{
-  "remote": "ws://localhost:3000/ws",
-  "connectionToken": "cbt_your_token_here"
-}
-```
-
-### 4. Launch
-
-```bash
-claude --dangerously-load-development-channels server:clawback
-```
-
-> **Note**: Do not use `--channels server:clawback` alongside the dev flag — it causes an allowlist conflict. Use only `--dangerously-load-development-channels`.
-
-### 5. Test it
-
-Send a webhook to the server (use the webhook ID from the seed output):
-
-```bash
-curl -X POST http://localhost:3000/webhooks/<your-webhook-id>/test \
-  -H 'Content-Type: application/json' \
-  -d '{"message":"Hello from the server!"}'
-```
-
-Claude will receive the event and act on it.
+Once connected, tell Claude what you want — it has access to all the Clawback tools and will configure sources, crons, and routing for you.
 
 ## Configuration
 
@@ -77,7 +44,7 @@ Claude will receive the event and act on it.
 
 ```json
 {
-  "remote": "wss://your-server.fly.dev/ws",
+  "remote": "wss://getclawback.io/ws",
   "connectionToken": "cbt_your_token_here"
 }
 ```
