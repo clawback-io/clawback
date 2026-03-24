@@ -129,6 +129,18 @@ const ClientTokenListSchema = z.object({
   requestId: z.string(),
 })
 
+const ClientSessionSendSchema = z.object({
+  type: z.literal("session_send"),
+  requestId: z.string(),
+  targets: z.array(z.string()),
+  content: z.string(),
+})
+
+const ClientSessionListSchema = z.object({
+  type: z.literal("session_list"),
+  requestId: z.string(),
+})
+
 const ClientMessageSchema = z.discriminatedUnion("type", [
   ClientAuthSchema,
   ClientAckSchema,
@@ -144,6 +156,8 @@ const ClientMessageSchema = z.discriminatedUnion("type", [
   ClientTokenRotateSchema,
   ClientTokenCreateSchema,
   ClientTokenListSchema,
+  ClientSessionSendSchema,
+  ClientSessionListSchema,
 ])
 
 /** Messages sent from the local plugin to the remote server */

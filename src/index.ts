@@ -31,6 +31,7 @@ async function main() {
     eventQueue,
     remoteClient,
     notifications: config.notifications,
+    sessionMessaging: config.sessionMessaging,
     configPath: getConfigPath(),
   })
   emitChannelEvent = emitFn

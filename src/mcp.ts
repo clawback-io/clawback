@@ -12,6 +12,7 @@ export interface McpServerOptions {
   remoteClient: RemoteClient
   notifications?: boolean
   configPath?: string
+  sessionMessaging?: boolean
 }
 
 /** Error messages that are safe to forward to the client as-is. */
@@ -44,6 +45,7 @@ export function createMcpServer(opts: McpServerOptions) {
   const { eventQueue, remoteClient } = opts
   const notifications = opts.notifications ?? false
   const configPath = opts.configPath
+  const sessionMessaging = opts.sessionMessaging ?? true
 
   const server = new Server(
     { name: "clawback", version: "0.2.0" },
@@ -283,6 +285,39 @@ export function createMcpServer(opts: McpServerOptions) {
           properties: {},
         },
       },
+      ...(sessionMessaging
+        ? [
+            {
+              name: "session_send",
+              description:
+                'Send a message to one or more sessions. Other Claude Code agents connected with matching session tags will receive it as a channel event. Use "*" to broadcast to all connected sessions.',
+              inputSchema: {
+                type: "object" as const,
+                properties: {
+                  target: {
+                    type: "string",
+                    description:
+                      'Session tag(s) to send to. Comma-separated for multiple (e.g., "deploys,oncall"). Use "*" to broadcast to all sessions.',
+                  },
+                  message: {
+                    type: "string",
+                    description: "The message content to send",
+                  },
+                },
+                required: ["target", "message"],
+              },
+            },
+            {
+              name: "session_list",
+              description:
+                "List all currently connected sessions for your account. Shows session tags and marks the current session.",
+              inputSchema: {
+                type: "object" as const,
+                properties: {},
+              },
+            },
+          ]
+        : []),
     ],
   }))
 
@@ -819,6 +854,80 @@ export function createMcpServer(opts: McpServerOptions) {
               {
                 type: "text" as const,
                 text: `Failed to list tokens: ${safeErrorMessage(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "session_send": {
+        const target = args?.target as string
+        const message = args?.message as string
+        const targets = target.split(",").map((t) => t.trim())
+
+        try {
+          const data = await remoteClient.request({
+            type: "session_send",
+            requestId: crypto.randomUUID(),
+            targets,
+            content: message,
+          })
+          const result = data as { sent: number; queued: number }
+          const parts: string[] = []
+          if (result.sent > 0)
+            parts.push(`sent to ${result.sent} session${result.sent === 1 ? "" : "s"}`)
+          if (result.queued > 0) parts.push(`${result.queued} queued (offline)`)
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Message ${parts.join(", ")}${target === "*" ? " (broadcast)" : ""}.`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to send session message: ${safeErrorMessage(err)}`,
+              },
+            ],
+            isError: true,
+          }
+        }
+      }
+
+      case "session_list": {
+        try {
+          const data = await remoteClient.request({
+            type: "session_list",
+            requestId: crypto.randomUUID(),
+          })
+          const sessions = data as Array<{ sessionTag: string | null; current: boolean }>
+          if (sessions.length === 0) {
+            return {
+              content: [{ type: "text" as const, text: "No sessions connected." }],
+            }
+          }
+          const lines = sessions.map(
+            (s) => `- ${s.sessionTag ?? "(untagged)"}${s.current ? " (current)" : ""}`,
+          )
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Connected sessions (${sessions.length}):\n${lines.join("\n")}`,
+              },
+            ],
+          }
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to list sessions: ${safeErrorMessage(err)}`,
               },
             ],
             isError: true,
