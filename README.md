@@ -11,7 +11,7 @@ Clawback has two parts:
 
 ```
 External Services ──POST──▶ Clawback Server ◀──WebSocket──▶ This Plugin ──▶ Claude Code
-                            (Fly.io / local)                (MCP over stdio)
+                            (getclawback.io)                (MCP over stdio)
 ```
 
 Events are dispatched one at a time. Claude processes each event and calls `event_ack` to release the next. A reminder fires after 2 minutes, and a timeout auto-advances after 5 minutes.
