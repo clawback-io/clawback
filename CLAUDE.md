@@ -168,6 +168,18 @@ source_create slug="github" type="github" secret="..." session="deploys"
 cron_create schedule="0 9 * * *" prompt="/catchup" session="oncall"
 ```
 
+### Inter-agent messaging
+
+Sessions can send messages directly to each other using `session_send` and discover peers with `session_list`. No webhook setup required.
+
+- `session_send` accepts a target session tag (or `*` to broadcast to all connected sessions) and a message string
+- `session_list` returns all currently connected sessions for the account
+- Messages to offline sessions are durably queued on the server and delivered when the session reconnects
+- Broadcasts (`*`) are fire-and-forget — only delivered to sessions connected at that moment
+- Disable receiving messages per-session with `"sessionMessaging": false` in config
+
+This enables multi-agent workflows where one Claude session can coordinate with another — for example, a deploy session notifying an oncall session about a new release, or a triage session forwarding details to a session that handles fixes.
+
 ## Key constraints
 
 - All `meta` values in channel notifications must be `Record<string, string>` — no booleans, numbers, or null

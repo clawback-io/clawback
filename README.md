@@ -96,6 +96,7 @@ Claude will receive the event and act on it.
 - **Multi-account** — The server supports multiple users with isolated event queues, webhook sources, and cron jobs
 - **Auto-reconnect** — If the WebSocket connection drops, the plugin reconnects automatically with exponential backoff. Events queue up on the server and drain when you reconnect.
 - **Sequential Dispatch** — Events are delivered one at a time. Claude calls `event_ack` when done, releasing the next event. Includes a reminder nudge (2 min) and timeout (5 min) as safety nets.
+- **Inter-agent messaging** — Sessions can send messages directly to each other via `session_send` and discover peers with `session_list`. Messages to offline sessions are durably queued. Enables multi-agent coordination without any webhook setup.
 
 ## Project Structure
 
