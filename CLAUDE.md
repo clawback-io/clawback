@@ -168,6 +168,16 @@ source_create slug="github" type="github" secret="..." session="deploys"
 cron_create schedule="0 9 * * *" prompt="/catchup" session="oncall"
 ```
 
+### Event priority
+
+Events can have a priority level: `normal` (default), `priority`, or `interrupt`.
+
+- **normal** — back of the queue (default)
+- **priority** — jumps to the front of the queue, waits for the current event to finish
+- **interrupt** — immediately stops the current event (re-queues it to the front), dispatches the interrupt
+
+Priority can be set on webhook sources, crons, and session messages. Set via the `priority` parameter on `source_create`, `cron_create`, and `session_send`.
+
 ### Inter-agent messaging
 
 Sessions can send messages directly to each other using `session_send` and discover peers with `session_list`. No webhook setup required.

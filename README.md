@@ -97,6 +97,7 @@ Claude will receive the event and act on it.
 - **Auto-reconnect** — If the WebSocket connection drops, the plugin reconnects automatically with exponential backoff. Events queue up on the server and drain when you reconnect.
 - **Sequential Dispatch** — Events are delivered one at a time. Claude calls `event_ack` when done, releasing the next event. Includes a reminder nudge (2 min) and timeout (5 min) as safety nets.
 - **Inter-agent messaging** — Sessions can send messages directly to each other via `session_send` and discover peers with `session_list`. Messages to offline sessions are durably queued. Enables multi-agent coordination without any webhook setup.
+- **Priority and interrupt** — Events can be marked as `priority` (jumps to front of queue) or `interrupt` (stops the current event, re-queues it, and dispatches immediately). Set on sources, crons, or session messages.
 
 ## Project Structure
 
