@@ -51,8 +51,10 @@ Once connected, tell Claude what you want — it has access to all the Clawback 
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `remote` | Yes | WebSocket URL of the Clawback server (`ws://` for local, `wss://` for production) |
-| `connectionToken` | Yes | Connection token from the server (starts with `cbt_`) |
+| `remote` | Yes | WebSocket URL of the Clawback server (`wss://` for production, `ws://` allowed for localhost only) |
+| `connectionToken` | Yes | Connection token (starts with `cbt_`) |
+| `notifications` | No | Desktop notifications when events are processed (default: `false`) |
+| `sessionMessaging` | No | Allow receiving messages from other sessions (default: `false`) |
 | `dataDir` | No | Local data directory (default: `~/.claude/channels/clawback`) |
 
 ## Features
