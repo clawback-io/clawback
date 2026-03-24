@@ -126,6 +126,8 @@ Clawback Server ←──WebSocket──→ Local Plugin ←──stdio──→
 | `token_create` | Create an additional connection token for another machine |
 | `token_list` | List all tokens (ID, label, last seen) without revealing values |
 | `token_rotate` | Rotate current token — creates new, revokes old, updates config |
+| `session_send` | Send a message to another session (or broadcast with `*`) |
+| `session_list` | List all currently connected sessions |
 
 ### Skill mapping
 
