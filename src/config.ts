@@ -9,7 +9,7 @@ const CHANNELS_DIR = join(CLAUDE_DIR, "channels", "clawback")
 const ConfigSchema = z.object({
   dataDir: z.string().default(CHANNELS_DIR),
   notifications: z.boolean().default(false),
-  sessionMessaging: z.boolean().default(true),
+  sessionMessaging: z.boolean().default(false),
   remote: z
     .string()
     .url()

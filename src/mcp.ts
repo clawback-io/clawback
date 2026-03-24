@@ -45,7 +45,7 @@ export function createMcpServer(opts: McpServerOptions) {
   const { eventQueue, remoteClient } = opts
   const notifications = opts.notifications ?? false
   const configPath = opts.configPath
-  const sessionMessaging = opts.sessionMessaging ?? true
+  const sessionMessaging = opts.sessionMessaging ?? false
 
   const server = new Server(
     { name: "clawback", version: "0.2.0" },

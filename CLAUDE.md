@@ -186,7 +186,7 @@ Sessions can send messages directly to each other using `session_send` and disco
 - `session_list` returns all currently connected sessions for the account
 - Messages to offline sessions are durably queued on the server and delivered when the session reconnects
 - Broadcasts (`*`) are fire-and-forget — only delivered to sessions connected at that moment
-- Disable receiving messages per-session with `"sessionMessaging": false` in config
+- Enable receiving messages per-session with `"sessionMessaging": true` in config (disabled by default)
 
 This enables multi-agent workflows where one Claude session can coordinate with another — for example, a deploy session notifying an oncall session about a new release, or a triage session forwarding details to a session that handles fixes.
 

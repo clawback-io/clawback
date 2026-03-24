@@ -65,7 +65,7 @@ describe("loadConfig", () => {
     expect(config.dataDir).toBe("/tmp/custom-clawback")
   })
 
-  test("sessionMessaging defaults to true when not specified", () => {
+  test("sessionMessaging defaults to false when not specified", () => {
     const configPath = join(tmpDir, "config.json")
     writeFileSync(
       configPath,
@@ -77,7 +77,7 @@ describe("loadConfig", () => {
     process.env.CLAWBACK_CONFIG = configPath
 
     const config = loadConfig()
-    expect(config.sessionMessaging).toBe(true)
+    expect(config.sessionMessaging).toBe(false)
   })
 
   test("notifications defaults to false when not specified", () => {
