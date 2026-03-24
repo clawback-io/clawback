@@ -20,6 +20,7 @@ const DEFAULT_TIMEOUT_MS = 300_000 // 5 minutes
 const DEFAULT_MAX_QUEUE_SIZE = 100
 
 interface InflightContext {
+  event: QueuedEvent
   meta: Record<string, string>
   dispatchedAt: string
   queueDepth: number
@@ -65,9 +66,32 @@ export class EventQueue {
       )
       return
     }
-    this.queue.push(event)
+
+    const priority = event.meta.priority ?? "normal"
+
+    if (priority === "interrupt" && this.inflight) {
+      // Re-queue the current inflight event to front
+      console.error("[clawback] Interrupt received — re-queuing current event")
+      // biome-ignore lint/style/noNonNullAssertion: inflight is checked above
+      this.queue.unshift(this.inflightCtx!.event)
+      this.clearTimers()
+      this.inflight = false
+      this.inflightCtx = null
+      // Insert interrupt at front and dispatch immediately
+      this.queue.unshift(event)
+      console.error(`[clawback] Interrupt queued at front (${this.queue.length} pending)`)
+      this.tryDispatch()
+      return
+    }
+
+    if (priority === "priority" || priority === "interrupt") {
+      this.queue.unshift(event)
+    } else {
+      this.queue.push(event)
+    }
+
     console.error(
-      `[clawback] Event queued (${this.queue.length} pending, inflight=${this.inflight})`,
+      `[clawback] Event queued [${priority}] (${this.queue.length} pending, inflight=${this.inflight})`,
     )
     this.tryDispatch()
   }
@@ -96,6 +120,7 @@ export class EventQueue {
     const queueDepth = this.queue.length
 
     this.inflightCtx = {
+      event,
       meta: event.meta,
       dispatchedAt: new Date().toISOString(),
       queueDepth,

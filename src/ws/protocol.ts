@@ -59,6 +59,7 @@ const ClientCronCreateSchema = z.object({
   prompt: z.string(),
   label: z.string().optional(),
   sessionTag: z.string().optional(),
+  priority: z.enum(["normal", "priority", "interrupt"]).optional(),
 })
 
 const ClientCronDeleteSchema = z.object({
@@ -88,6 +89,7 @@ const ClientSourceCreateSchema = z.object({
     })
     .optional(),
   sessionTag: z.string().optional(),
+  priority: z.enum(["normal", "priority", "interrupt"]).optional(),
 })
 
 const ClientSourceListSchema = z.object({
@@ -134,6 +136,7 @@ const ClientSessionSendSchema = z.object({
   requestId: z.string(),
   targets: z.array(z.string()),
   content: z.string(),
+  priority: z.enum(["normal", "priority", "interrupt"]).optional(),
 })
 
 const ClientSessionListSchema = z.object({

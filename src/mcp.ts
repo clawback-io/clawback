@@ -106,6 +106,12 @@ export function createMcpServer(opts: McpServerOptions) {
               description:
                 "Target session tag — only the Claude Code instance connected with this tag will receive the cron event. Defaults to current session if set via CLAWBACK_SESSION env var. Omit for broadcast to all sessions.",
             },
+            priority: {
+              type: "string",
+              description:
+                'Event priority when cron fires: "normal" (default), "priority" (front of queue), or "interrupt" (stops current event)',
+              enum: ["normal", "priority", "interrupt"],
+            },
           },
           required: ["schedule", "prompt"],
         },
@@ -202,6 +208,12 @@ export function createMcpServer(opts: McpServerOptions) {
               type: "string",
               description:
                 "Target session tag — only the Claude Code instance connected with this tag will receive webhooks from this source. Defaults to current session if set via CLAWBACK_SESSION env var. Omit for broadcast to all sessions.",
+            },
+            priority: {
+              type: "string",
+              description:
+                'Event priority for webhooks from this source: "normal" (default), "priority" (front of queue), or "interrupt" (stops current event)',
+              enum: ["normal", "priority", "interrupt"],
             },
           },
           required: ["slug"],
@@ -303,6 +315,12 @@ export function createMcpServer(opts: McpServerOptions) {
                     type: "string",
                     description: "The message content to send",
                   },
+                  priority: {
+                    type: "string",
+                    description:
+                      'Event priority: "normal" (default, back of queue), "priority" (front of queue), or "interrupt" (immediately stops current event, which gets re-queued)',
+                    enum: ["normal", "priority", "interrupt"],
+                  },
                 },
                 required: ["target", "message"],
               },
@@ -330,6 +348,7 @@ export function createMcpServer(opts: McpServerOptions) {
         const prompt = args?.prompt as string
         const label = args?.label as string | undefined
         const session = (args?.session as string | undefined) ?? remoteClient.getSessionTag()
+        const priority = args?.priority as "normal" | "priority" | "interrupt" | undefined
 
         // Validate cron expression locally before sending to server
         try {
@@ -353,6 +372,7 @@ export function createMcpServer(opts: McpServerOptions) {
             prompt,
             label,
             sessionTag: session,
+            priority,
           })
           const result = data as {
             id: string
@@ -496,6 +516,7 @@ export function createMcpServer(opts: McpServerOptions) {
           | { header?: string; body?: string; action?: string }
           | undefined
         const session = (args?.session as string | undefined) ?? remoteClient.getSessionTag()
+        const priority = args?.priority as "normal" | "priority" | "interrupt" | undefined
 
         try {
           const data = await remoteClient.request({
@@ -508,6 +529,7 @@ export function createMcpServer(opts: McpServerOptions) {
             routes,
             eventType,
             sessionTag: session,
+            priority,
           })
           const result = data as {
             id: string
@@ -864,6 +886,7 @@ export function createMcpServer(opts: McpServerOptions) {
       case "session_send": {
         const target = args?.target as string
         const message = args?.message as string
+        const sendPriority = args?.priority as "normal" | "priority" | "interrupt" | undefined
         const targets = target.split(",").map((t) => t.trim())
 
         try {
@@ -872,6 +895,7 @@ export function createMcpServer(opts: McpServerOptions) {
             requestId: crypto.randomUUID(),
             targets,
             content: message,
+            priority: sendPriority,
           })
           const result = data as { sent: number; queued: number }
           const parts: string[] = []

@@ -267,4 +267,93 @@ describe("EventQueue", () => {
     queue.ack()
     expect(queue.inflightMeta).toBeNull()
   })
+
+  test("priority event jumps to front of queue", async () => {
+    const emitFn = mock<EmitFn>(async () => {})
+    queue = makeQueue(emitFn)
+
+    queue.enqueue(makeEvent("normal-1"))
+    await new Promise((r) => setTimeout(r, 10))
+    // normal-1 is inflight
+
+    queue.enqueue(makeEvent("normal-2"))
+    queue.enqueue(makeEvent("urgent", { priority: "priority" }))
+    queue.enqueue(makeEvent("normal-3"))
+
+    // urgent should be at front, then normal-2, then normal-3
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[1][0]).toBe("event-urgent")
+
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[2][0]).toBe("event-normal-2")
+
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[3][0]).toBe("event-normal-3")
+  })
+
+  test("interrupt re-queues current event and dispatches immediately", async () => {
+    const emitFn = mock<EmitFn>(async () => {})
+    queue = makeQueue(emitFn)
+
+    queue.enqueue(makeEvent("working"))
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[0][0]).toBe("event-working")
+    expect(queue.busy).toBe(true)
+
+    // Interrupt while "working" is inflight
+    queue.enqueue(makeEvent("emergency", { priority: "interrupt" }))
+    await new Promise((r) => setTimeout(r, 10))
+
+    // Emergency should have dispatched, working should be re-queued
+    expect(emitFn.mock.calls[1][0]).toBe("event-emergency")
+    expect(queue.busy).toBe(true)
+
+    // Ack the interrupt — "working" should resume
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[2][0]).toBe("event-working")
+  })
+
+  test("interrupt when idle dispatches immediately like priority", async () => {
+    const emitFn = mock<EmitFn>(async () => {})
+    queue = makeQueue(emitFn)
+
+    queue.enqueue(makeEvent("interrupt-idle", { priority: "interrupt" }))
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[0][0]).toBe("event-interrupt-idle")
+  })
+
+  test("interrupt preserves queue order after re-queue", async () => {
+    const emitFn = mock<EmitFn>(async () => {})
+    queue = makeQueue(emitFn)
+
+    queue.enqueue(makeEvent("first"))
+    await new Promise((r) => setTimeout(r, 10))
+    // first is inflight
+
+    queue.enqueue(makeEvent("second"))
+    queue.enqueue(makeEvent("third"))
+
+    // Interrupt — first gets re-queued to front
+    queue.enqueue(makeEvent("urgent", { priority: "interrupt" }))
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(emitFn.mock.calls[1][0]).toBe("event-urgent")
+
+    // After ack: first, second, third
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[2][0]).toBe("event-first")
+
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[3][0]).toBe("event-second")
+
+    queue.ack()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(emitFn.mock.calls[4][0]).toBe("event-third")
+  })
 })
